@@ -61,7 +61,16 @@
             },
             "filter": [
                 "all",
-                null
+                [
+                    ">",
+                    "footprint_count",
+                    0
+                ],
+                [
+                    "<=",
+                    "footprint_count",
+                    6.25
+                ]
             ]
         },
         {
@@ -76,7 +85,16 @@
             },
             "filter": [
                 "all",
-                null
+                [
+                    ">",
+                    "footprint_count",
+                    6.25
+                ],
+                [
+                    "<=",
+                    "footprint_count",
+                    12.5
+                ]
             ]
         },
         {
@@ -91,7 +109,16 @@
             },
             "filter": [
                 "all",
-                null
+                [
+                    ">",
+                    "footprint_count",
+                    12.5
+                ],
+                [
+                    "<=",
+                    "footprint_count",
+                    18.75
+                ]
             ]
         },
         {
@@ -106,7 +133,16 @@
             },
             "filter": [
                 "all",
-                null
+                [
+                    ">",
+                    "footprint_count",
+                    18.75
+                ],
+                [
+                    "<=",
+                    "footprint_count",
+                    25
+                ]
             ]
         },
         {
@@ -121,7 +157,16 @@
             },
             "filter": [
                 "all",
-                null
+                [
+                    ">",
+                    "footprint_count",
+                    25
+                ],
+                [
+                    "<=",
+                    "footprint_count",
+                    31.25
+                ]
             ]
         },
         {
@@ -136,7 +181,16 @@
             },
             "filter": [
                 "all",
-                null
+                [
+                    ">",
+                    "footprint_count",
+                    31.25
+                ],
+                [
+                    "<=",
+                    "footprint_count",
+                    37.5
+                ]
             ]
         },
         {
@@ -151,7 +205,16 @@
             },
             "filter": [
                 "all",
-                null
+                [
+                    ">",
+                    "footprint_count",
+                    37.5
+                ],
+                [
+                    "<=",
+                    "footprint_count",
+                    43.75
+                ]
             ]
         },
         {
@@ -166,7 +229,16 @@
             },
             "filter": [
                 "all",
-                null
+                [
+                    ">",
+                    "footprint_count",
+                    43.75
+                ],
+                [
+                    "<=",
+                    "footprint_count",
+                    50
+                ]
             ]
         },
         {
@@ -181,7 +253,16 @@
             },
             "filter": [
                 "all",
-                null
+                [
+                    ">",
+                    "footprint_count",
+                    50
+                ],
+                [
+                    "<=",
+                    "footprint_count",
+                    56.25
+                ]
             ]
         },
         {
@@ -196,7 +277,16 @@
             },
             "filter": [
                 "all",
-                null
+                [
+                    ">",
+                    "footprint_count",
+                    56.25
+                ],
+                [
+                    "<=",
+                    "footprint_count",
+                    62.5
+                ]
             ]
         },
         {
@@ -211,7 +301,16 @@
             },
             "filter": [
                 "all",
-                null
+                [
+                    ">",
+                    "footprint_count",
+                    62.5
+                ],
+                [
+                    "<=",
+                    "footprint_count",
+                    68.75
+                ]
             ]
         },
         {
@@ -226,7 +325,16 @@
             },
             "filter": [
                 "all",
-                null
+                [
+                    ">",
+                    "footprint_count",
+                    68.75
+                ],
+                [
+                    "<=",
+                    "footprint_count",
+                    75
+                ]
             ]
         },
         {
@@ -241,7 +349,16 @@
             },
             "filter": [
                 "all",
-                null
+                [
+                    ">",
+                    "footprint_count",
+                    75
+                ],
+                [
+                    "<=",
+                    "footprint_count",
+                    81.25
+                ]
             ]
         },
         {
@@ -256,7 +373,16 @@
             },
             "filter": [
                 "all",
-                null
+                [
+                    ">",
+                    "footprint_count",
+                    81.25
+                ],
+                [
+                    "<=",
+                    "footprint_count",
+                    87.5
+                ]
             ]
         },
         {
@@ -271,7 +397,16 @@
             },
             "filter": [
                 "all",
-                null
+                [
+                    ">",
+                    "footprint_count",
+                    87.5
+                ],
+                [
+                    "<=",
+                    "footprint_count",
+                    93.75
+                ]
             ]
         },
         {
@@ -286,7 +421,16 @@
             },
             "filter": [
                 "all",
-                null
+                [
+                    ">",
+                    "footprint_count",
+                    93.75
+                ],
+                [
+                    "<=",
+                    "footprint_count",
+                    100
+                ]
             ]
         }
     ]

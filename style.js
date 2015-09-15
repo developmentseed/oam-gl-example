@@ -76,7 +76,7 @@ for (var i = 0; i < breaks; i++) {
       "fill-opacity": i / breaks
     },
     "filter": [ "all",
-      [ ">", "footprint_count", 1 ]
+      [ ">", "footprint_count", i / breaks * maxVal ],
       [ "<=", "footprint_count", (i + 1) / breaks * maxVal ]
     ]
   })

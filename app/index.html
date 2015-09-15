@@ -79,13 +79,35 @@ mapboxgl.util.getJSON('style.json', function(err, stylesheet) {
     zoom: 9
   });
 
+  function fc (features) {
+    return {
+      type: "FeatureCollection",
+      features: features
+    }
+  }
+
+  var hoverSource = new mapboxgl.GeoJSONSource({ data: fc([]) })
+  map.on('load', function () {
+    // add an empty source for storing the hovered feature
+    map.addSource('hover', hoverSource)
+    map.addLayer({
+      id: 'hover-style',
+      type: 'fill',
+      source: 'hover',
+      paint: {
+        "fill-color": "#a3d",
+      }
+    })
+  })
+
   // Track mouse movements, use it to look up the feature properties from the
   // vector tiles underneath the mouse
   var follow = true;
   map.on('mousemove', function (e) {
     if (!follow) return;
-    map.featuresAt(e.point, {}, function (err, features) {
+    map.featuresAt(e.point, { includeGeometry: true }, function (err, features) {
       if (err) throw err;
+      hoverSource.setData(fc(features))
       features.forEach(function (f) {
         f.layerid = f.layer.id
         delete f.layer
