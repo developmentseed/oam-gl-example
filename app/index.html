@@ -39,7 +39,12 @@
 <script>
 mapboxgl.accessToken = 'pk.eyJ1IjoiZGV2c2VlZCIsImEiOiJnUi1mbkVvIn0.018aLhX0Mb0tdtaT2QNe2Q';
 var errors = document.getElementById('errors');
+
 mapboxgl.util.getJSON('style.json', function(err, stylesheet) {
+
+  // This is just the logic for downloading the style.json & validating it.  In
+  // reality, we wouldn't do any of this on the client
+
   if (err) {
     errors.appendChild(document.createElement('h2')).innerHTML = 'JSON Error';
     errors.appendChild(document.createElement('p')).innerHTML = err.toString();
@@ -65,6 +70,8 @@ mapboxgl.util.getJSON('style.json', function(err, stylesheet) {
       return;
   }
 
+
+  // Initialize the map
   var map = new mapboxgl.Map({
     container: 'map',
     style: stylesheet,
@@ -72,6 +79,8 @@ mapboxgl.util.getJSON('style.json', function(err, stylesheet) {
     zoom: 9
   });
 
+  // Track mouse movements, use it to look up the feature properties from the
+  // vector tiles underneath the mouse
   var follow = true;
   map.on('mousemove', function (e) {
     if (!follow) return;

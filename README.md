@@ -31,18 +31,5 @@ And then install the dependencies:
 
 And then start up:
 
-    gulp --style=style.json
+    gulp --style=style.js
 
-You can also specify `style.json5`, `style.yml`, or `style.toml` as your
-inputs. Unlike JSON, these alternative formats support commenting, so you
-can annotate your styles. Note that this is a one-way conversion, like the conversion
-from [CartoCSS](https://www.mapbox.com/tilemill/docs/manual/carto/)
-to [Mapnik XML](https://github.com/mapnik/mapnik/wiki/XMLConfigReference)
-was.
-
-## Example
-
-This project is an _example_ of one such flow: you could do the same
-with a bare-bones node.js script, or Python or any other environment. You could
-also skip some of the fancier features, like live reloading, or add others,
-like a more complex debugging view.

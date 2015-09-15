@@ -1,0 +1,293 @@
+{
+    "version": 8,
+    "name": "Basic",
+    "sources": {
+        "mapbox": {
+            "type": "vector",
+            "url": "mapbox://mapbox.mapbox-streets-v6"
+        },
+        "grid": {
+            "type": "vector",
+            "url": "mapbox://devseed.7ws9izi8"
+        }
+    },
+    "sprite": "",
+    "glyphs": "",
+    "layers": [
+        {
+            "id": "background",
+            "type": "background",
+            "paint": {
+                "background-color": "#799bbb"
+            }
+        },
+        {
+            "id": "water",
+            "type": "fill",
+            "source": "mapbox",
+            "source-layer": "water",
+            "paint": {
+                "fill-color": "#ace"
+            }
+        },
+        {
+            "id": "states",
+            "type": "line",
+            "source": "mapbox",
+            "source-layer": "admin",
+            "paint": {
+                "line-color": "#4a6d8b"
+            }
+        },
+        {
+            "id": "pop",
+            "interactive": true,
+            "type": "line",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "line-color": "#000"
+            }
+        },
+        {
+            "id": "pop0",
+            "interactive": true,
+            "type": "fill",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "fill-color": "#0ff",
+                "fill-opacity": 0
+            },
+            "filter": [
+                "all",
+                null
+            ]
+        },
+        {
+            "id": "pop1",
+            "interactive": true,
+            "type": "fill",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "fill-color": "#0ff",
+                "fill-opacity": 0.0625
+            },
+            "filter": [
+                "all",
+                null
+            ]
+        },
+        {
+            "id": "pop2",
+            "interactive": true,
+            "type": "fill",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "fill-color": "#0ff",
+                "fill-opacity": 0.125
+            },
+            "filter": [
+                "all",
+                null
+            ]
+        },
+        {
+            "id": "pop3",
+            "interactive": true,
+            "type": "fill",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "fill-color": "#0ff",
+                "fill-opacity": 0.1875
+            },
+            "filter": [
+                "all",
+                null
+            ]
+        },
+        {
+            "id": "pop4",
+            "interactive": true,
+            "type": "fill",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "fill-color": "#0ff",
+                "fill-opacity": 0.25
+            },
+            "filter": [
+                "all",
+                null
+            ]
+        },
+        {
+            "id": "pop5",
+            "interactive": true,
+            "type": "fill",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "fill-color": "#0ff",
+                "fill-opacity": 0.3125
+            },
+            "filter": [
+                "all",
+                null
+            ]
+        },
+        {
+            "id": "pop6",
+            "interactive": true,
+            "type": "fill",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "fill-color": "#0ff",
+                "fill-opacity": 0.375
+            },
+            "filter": [
+                "all",
+                null
+            ]
+        },
+        {
+            "id": "pop7",
+            "interactive": true,
+            "type": "fill",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "fill-color": "#0ff",
+                "fill-opacity": 0.4375
+            },
+            "filter": [
+                "all",
+                null
+            ]
+        },
+        {
+            "id": "pop8",
+            "interactive": true,
+            "type": "fill",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "fill-color": "#0ff",
+                "fill-opacity": 0.5
+            },
+            "filter": [
+                "all",
+                null
+            ]
+        },
+        {
+            "id": "pop9",
+            "interactive": true,
+            "type": "fill",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "fill-color": "#0ff",
+                "fill-opacity": 0.5625
+            },
+            "filter": [
+                "all",
+                null
+            ]
+        },
+        {
+            "id": "pop10",
+            "interactive": true,
+            "type": "fill",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "fill-color": "#0ff",
+                "fill-opacity": 0.625
+            },
+            "filter": [
+                "all",
+                null
+            ]
+        },
+        {
+            "id": "pop11",
+            "interactive": true,
+            "type": "fill",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "fill-color": "#0ff",
+                "fill-opacity": 0.6875
+            },
+            "filter": [
+                "all",
+                null
+            ]
+        },
+        {
+            "id": "pop12",
+            "interactive": true,
+            "type": "fill",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "fill-color": "#0ff",
+                "fill-opacity": 0.75
+            },
+            "filter": [
+                "all",
+                null
+            ]
+        },
+        {
+            "id": "pop13",
+            "interactive": true,
+            "type": "fill",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "fill-color": "#0ff",
+                "fill-opacity": 0.8125
+            },
+            "filter": [
+                "all",
+                null
+            ]
+        },
+        {
+            "id": "pop14",
+            "interactive": true,
+            "type": "fill",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "fill-color": "#0ff",
+                "fill-opacity": 0.875
+            },
+            "filter": [
+                "all",
+                null
+            ]
+        },
+        {
+            "id": "pop15",
+            "interactive": true,
+            "type": "fill",
+            "source": "grid",
+            "source-layer": "footprints",
+            "paint": {
+                "fill-color": "#0ff",
+                "fill-opacity": 0.9375
+            },
+            "filter": [
+                "all",
+                null
+            ]
+        }
+    ]
+}

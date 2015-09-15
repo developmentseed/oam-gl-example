@@ -58,9 +58,12 @@ var style = {
   ]
 };
 
+// Dynamically generate a set of layers that mimic data-driven styling.
+// This set of layers is like a color scale: it selects features with the
+// appropriate data values with `filter`, and then styles them with the
+// approprieate `fill-opacity`.
 var breaks = 16;
 var maxVal = 100;
-
 for (var i = 0; i < breaks; i++) {
   style.layers.push({
     "id": "pop" + i,
@@ -73,8 +76,8 @@ for (var i = 0; i < breaks; i++) {
       "fill-opacity": i / breaks
     },
     "filter": [ "all",
-      [ ">", "FID", 1 ]
-      //[ "<=", "FID", (i + 1) / breaks * maxVal ]
+      [ ">", "footprint_count", 1 ]
+      [ "<=", "footprint_count", (i + 1) / breaks * maxVal ]
     ]
   })
 }
