@@ -23,13 +23,21 @@
       box-sizing:border-box;
       width:100%;
     }
+    #features {
+      position:absolute; top:0; bottom:0; right: 0; width: 25%;
+      background: rgba(255, 255, 255, 0.8);
+    }
+    .follow {
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
 <div id='map'></div>
 <div id='errors'></div>
+<div id='features'></div>
 <script>
-mapboxgl.accessToken = 'pk.eyJ1IjoidG1jdyIsImEiOiJIZmRUQjRBIn0.lRARalfaGHnPdRcc-7QZYQ';
+mapboxgl.accessToken = 'pk.eyJ1IjoiZGV2c2VlZCIsImEiOiJnUi1mbkVvIn0.018aLhX0Mb0tdtaT2QNe2Q';
 var errors = document.getElementById('errors');
 mapboxgl.util.getJSON('style.json', function(err, stylesheet) {
   if (err) {
@@ -46,7 +54,7 @@ mapboxgl.util.getJSON('style.json', function(err, stylesheet) {
       return;
   }
 
-  var valid = validate(stylesheet);
+  var valid = validate(JSON.stringify(stylesheet));
   if (valid.length) {
       errors.style.display = 'block';
       errors.appendChild(document.createElement('h2')).innerHTML = 'Style Validation Error';
@@ -60,9 +68,28 @@ mapboxgl.util.getJSON('style.json', function(err, stylesheet) {
   var map = new mapboxgl.Map({
     container: 'map',
     style: stylesheet,
-    center: [40, -74.50],
+    center: [-74.50, 40],
     zoom: 9
   });
+
+  var follow = true;
+  map.on('mousemove', function (e) {
+    if (!follow) return;
+    map.featuresAt(e.point, {}, function (err, features) {
+      if (err) throw err;
+      features.forEach(function (f) {
+        f.layerid = f.layer.id
+        delete f.layer
+      })
+      document.querySelector('#features').innerHTML = '<pre>' +
+        JSON.stringify(features, null, 2) + '</pre>'
+    })
+  });
+
+  map.on('click', function () {
+    follow = !follow;
+    document.querySelector('#features').classList.toggle('follow');
+  })
 });
 </script>
 </body>

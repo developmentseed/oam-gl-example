@@ -20,7 +20,8 @@ var options = minimist(process.argv.slice(2), {
 gulp.task('connect', function() {
   connect.server({
     root: 'app',
-    livereload: true
+    livereload: true,
+    port: 1984
   });
 });
 
