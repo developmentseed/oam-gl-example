@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset='utf-8' />
+  <title>Mapbox GL</title>
+  <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+  <link href='node_modules/mapbox-gl/dist/mapbox-gl.css' rel='stylesheet' />
+  <style>
+    body { margin:0; padding:0; }
+    #map { position:absolute; top:0; bottom:0; width:100%; }
+    #errors {
+      pointer-events: none;
+      position:absolute;
+      top:0;
+      bottom:0;
+      display:none;
+      background:#fff;
+      color:red;
+      padding:20px;
+      font:13px/20px monospace;
+      box-sizing:border-box;
+      width:100%;
+    }
+    #choose {
+      position:absolute; top: 0; right: 0; width: 25%;
+    }
+    #choose select { width: 100%; }
+    #features {
+      position:absolute; top:2em; bottom:0; right: 0; width: 25%;
+      background: rgba(255, 255, 255, 0.8);
+    }
+    .follow {
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+<div id='map'></div>
+<div id='errors'></div>
+<div id='choose'></div>
+<div id='features'></div>
+<script src='index.js'></script>
+</body>
+</html>
