@@ -22,6 +22,10 @@ module.exports = function (property, breaks, maxVal) {
       'grid': {
         'type': 'vector',
         'url': 'mapbox://devseed.oam-footprints'
+      },
+      'grid-hover': {
+        'type': 'geojson',
+        'data': { 'type': 'FeatureCollection', 'features': [] }
       }
     },
     'sprite': '',
@@ -82,6 +86,16 @@ module.exports = function (property, breaks, maxVal) {
       ]
     })
   }
+
+  // add the hover style layer at the end so it goes on top
+  style.layers.push({
+    id: 'hover-style',
+    type: 'fill',
+    source: 'grid-hover',
+    paint: {
+      'fill-color': '#a3d'
+    }
+  })
 
   return style
 }

@@ -18,28 +18,12 @@ document.addEventListener('DOMContentLoaded', function () {
     zoom: 9
   })
 
-  var hoverSource
-  function setupHover () {
-    hoverSource = new mapboxgl.GeoJSONSource({ data: fc([]) })
-    // add an empty source for storing the hovered feature
-    map.addSource('hover', hoverSource)
-    map.addLayer({
-      id: 'hover-style',
-      type: 'fill',
-      source: 'hover',
-      paint: {
-        'fill-color': '#a3d'
-      }
-    })
-  }
-
   // chose the filter
   var ChooseFilter = React.createClass({
     onChange: function (e) {
       stylesheet = makeStyle(e.target.value + '_count', 16, 100)
       if (validateStyle(stylesheet)) {
         map.setStyle(stylesheet)
-        map.on('style.load', setupHover)
       }
     },
 
@@ -55,9 +39,6 @@ document.addEventListener('DOMContentLoaded', function () {
   })
   React.render(<ChooseFilter />, document.getElementById('choose'))
 
-  // initialize the hover on initial map load
-  map.on('load', setupHover)
-
   // Track mouse movements, use it to look up the feature properties from the
   // vector tiles underneath the mouse
   var follow = true
@@ -65,7 +46,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!follow) return
     map.featuresAt(e.point, { includeGeometry: true }, function (err, features) {
       if (err) throw err
-      hoverSource.setData(fc(features))
+      map.getSource('grid-hover').setData(fc(features))
       features.forEach(function (f) {
         f.layerid = f.layer.id
         delete f.layer
