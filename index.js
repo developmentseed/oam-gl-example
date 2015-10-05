@@ -2,6 +2,7 @@ var React = require('react')
 var mapboxgl = require('mapbox-gl')
 var validate = require('mapbox-gl-style-spec').validate
 var filters = require('oam-browser-filters').getAllCombinations()
+var Filters = require('./filters')
 var makeStyle = require('./style')
 
 mapboxgl.accessToken = 'pk.eyJ1IjoiZGV2c2VlZCIsImEiOiJnUi1mbkVvIn0.018aLhX0Mb0tdtaT2QNe2Q'
@@ -14,30 +15,20 @@ document.addEventListener('DOMContentLoaded', function () {
   var map = new mapboxgl.Map({
     container: 'map',
     style: stylesheet,
-    center: [-74.50, 40],
-    zoom: 9
+    center: [Math.random() * 180, 0],
+    zoom: 1
   })
+
+  function updateFilter (filter) {
+    console.log(filter)
+    stylesheet = makeStyle(filter.key + '_count', 16, 100)
+    if (validateStyle(stylesheet)) {
+      map.setStyle(stylesheet)
+    }
+  }
 
   // chose the filter
-  var ChooseFilter = React.createClass({
-    onChange: function (e) {
-      stylesheet = makeStyle(e.target.value + '_count', 16, 100)
-      if (validateStyle(stylesheet)) {
-        map.setStyle(stylesheet)
-      }
-    },
-
-    render: function () {
-      return (
-        <select onChange={this.onChange}>
-          {filters.map(f => (
-            <option value={f.key} key={f.key}>{f.key}</option>
-          ))}
-        </select>
-      )
-    }
-  })
-  React.render(<ChooseFilter />, document.getElementById('choose'))
+  React.render(<Filters onChange={updateFilter} />, document.getElementById('choose'))
 
   // Track mouse movements, use it to look up the feature properties from the
   // vector tiles underneath the mouse
@@ -51,8 +42,6 @@ document.addEventListener('DOMContentLoaded', function () {
         f.layerid = f.layer.id
         delete f.layer
       })
-      document.querySelector('#features').innerHTML = '<pre>' +
-        JSON.stringify(features, null, 2) + '</pre>'
     })
   })
 

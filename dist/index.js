@@ -2,9 +2,165 @@
 'use strict';
 
 var React = require('react');
+
+var Dropdown = React.createClass({
+  displayName: 'Dropdown',
+
+  getDefaultProps: function getDefaultProps() {
+    return {
+      element: 'div',
+      className: '',
+
+      triggerTitle: '',
+      triggerClassName: '',
+      triggerText: ''
+    };
+  },
+
+  getInitialState: function getInitialState() {
+    return {
+      open: false
+    };
+  },
+
+  componentDidMount: function componentDidMount() {},
+
+  componentWillUnmount: function componentWillUnmount() {},
+
+  closeDropdown: function closeDropdown(e) {
+    e.preventDefault();
+    this.setState({ open: !this.state.open });
+  },
+
+  render: function render() {
+    var klasses = ['drop'];
+    if (this.state.open) {
+      klasses.push('open');
+    }
+    if (this.props.className) {
+      klasses.push(this.props.className);
+    }
+
+    return React.createElement(
+      this.props.element,
+      { className: klasses.join(' '), 'data-hook': 'dropdown' },
+      React.createElement(
+        'a',
+        { href: '#', title: this.props.triggerTitle, className: this.props.triggerClassName, onClick: this.closeDropdown },
+        React.createElement(
+          'span',
+          null,
+          this.props.triggerText
+        )
+      ),
+      React.createElement(
+        'div',
+        { className: 'drop-content' },
+        this.props.children
+      )
+    );
+  }
+});
+
+module.exports = Dropdown;
+
+},{"react":370}],2:[function(require,module,exports){
+'use strict';
+
+var React = require('react/addons');
+var filters = require('oam-browser-filters');
+var Dropdown = require('./dropdown');
+
+module.exports = React.createClass({
+  displayName: 'exports',
+
+  getInitialState: function getInitialState() {
+    return {
+      date: 'all',
+      resolution: 'all',
+      dataType: 'all'
+    };
+  },
+
+  propTypes: {
+    onChange: React.PropTypes.func
+  },
+
+  update: function update() {
+    var filter = filters.getCombination(this.state.date, this.state.resolution, this.state.dataType);
+    this.props.onChange(filter);
+  },
+
+  setDate: function setDate(d) {
+    this.setState({ date: d.key }, this.update);
+  },
+
+  setResolution: function setResolution(d) {
+    this.setState({ resolution: d.key }, this.update);
+  },
+
+  setDataType: function setDataType(d) {
+    this.setState({ dataType: d.key }, this.update);
+  },
+
+  render: function render() {
+    function filterItem(property, clickHandler, d) {
+      var klass = this.state[property] === d.key ? 'active' : '';
+      var click = clickHandler.bind(this, d);
+      return React.createElement(
+        'dd',
+        { key: property + '-filter-' + d.key, className: klass },
+        React.createElement(
+          'a',
+          { onClick: click, title: d.title },
+          d.title
+        )
+      );
+    }
+
+    var dates = [{ key: 'all', title: 'All' }, { key: 'week', title: 'Last week' }, { key: 'month', title: 'Last month' }, { key: 'year', title: 'Last year' }].map(filterItem.bind(this, 'date', this.setDate));
+
+    var resolutions = [{ key: 'all', title: 'All' }, { key: 'low', title: 'Low' }, { key: 'medium', title: 'Medium' }, { key: 'high', title: 'High' }].map(filterItem.bind(this, 'resolution', this.setResolution));
+
+    var dataTypes = [{ key: 'all', title: 'All Images' }, { key: 'service', title: 'Image + Map Layer' }].map(filterItem.bind(this, 'dataType', this.setDataType));
+
+    return React.createElement(
+      Dropdown,
+      { element: 'li', className: 'drop dropdown center', triggerTitle: 'Settings', triggerClassName: 'bttn-settings', triggerText: 'Settings' },
+      React.createElement(
+        'dl',
+        { className: 'drop-menu filters-options-menu', role: 'menu' },
+        React.createElement(
+          'dt',
+          { className: 'drop-menu-sectitle' },
+          'Time'
+        ),
+        dates,
+        React.createElement(
+          'dt',
+          { className: 'drop-menu-sectitle' },
+          'Resolution'
+        ),
+        resolutions,
+        React.createElement(
+          'dt',
+          { className: 'drop-menu-sectitle' },
+          'Data Type'
+        ),
+        dataTypes
+      )
+    );
+  }
+});
+
+},{"./dropdown":1,"oam-browser-filters":196,"react/addons":198}],3:[function(require,module,exports){
+'use strict';
+
+var React = require('react');
 var mapboxgl = require('mapbox-gl');
 var validate = require('mapbox-gl-style-spec').validate;
 var filters = require('oam-browser-filters').getAllCombinations();
+var Filters = require('./filters');
 var makeStyle = require('./style');
 
 mapboxgl.accessToken = 'pk.eyJ1IjoiZGV2c2VlZCIsImEiOiJnUi1mbkVvIn0.018aLhX0Mb0tdtaT2QNe2Q';
@@ -19,55 +175,20 @@ document.addEventListener('DOMContentLoaded', function () {
   var map = new mapboxgl.Map({
     container: 'map',
     style: stylesheet,
-    center: [-74.50, 40],
-    zoom: 9
+    center: [Math.random() * 180, 0],
+    zoom: 1
   });
 
-  var hoverSource;
-  function setupHover() {
-    hoverSource = new mapboxgl.GeoJSONSource({ data: fc([]) });
-    // add an empty source for storing the hovered feature
-    map.addSource('hover', hoverSource);
-    map.addLayer({
-      id: 'hover-style',
-      type: 'fill',
-      source: 'hover',
-      paint: {
-        'fill-color': '#a3d'
-      }
-    });
+  function updateFilter(filter) {
+    console.log(filter);
+    stylesheet = makeStyle(filter.key + '_count', 16, 100);
+    if (validateStyle(stylesheet)) {
+      map.setStyle(stylesheet);
+    }
   }
 
   // chose the filter
-  var ChooseFilter = React.createClass({
-    displayName: 'ChooseFilter',
-
-    onChange: function onChange(e) {
-      stylesheet = makeStyle(e.target.value + '_count', 16, 100);
-      if (validateStyle(stylesheet)) {
-        map.setStyle(stylesheet);
-        map.on('style.load', setupHover);
-      }
-    },
-
-    render: function render() {
-      return React.createElement(
-        'select',
-        { onChange: this.onChange },
-        filters.map(function (f) {
-          return React.createElement(
-            'option',
-            { value: f.key, key: f.key },
-            f.key
-          );
-        })
-      );
-    }
-  });
-  React.render(React.createElement(ChooseFilter, null), document.getElementById('choose'));
-
-  // initialize the hover on initial map load
-  map.on('load', setupHover);
+  React.render(React.createElement(Filters, { onChange: updateFilter }), document.getElementById('choose'));
 
   // Track mouse movements, use it to look up the feature properties from the
   // vector tiles underneath the mouse
@@ -76,12 +197,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!follow) return;
     map.featuresAt(e.point, { includeGeometry: true }, function (err, features) {
       if (err) throw err;
-      hoverSource.setData(fc(features));
+      map.getSource('grid-hover').setData(fc(features));
       features.forEach(function (f) {
         f.layerid = f.layer.id;
         delete f.layer;
       });
-      document.querySelector('#features').innerHTML = '<pre>' + JSON.stringify(features, null, 2) + '</pre>';
     });
   });
 
@@ -113,9 +233,3654 @@ function validateStyle(stylesheet) {
   return true;
 }
 
-},{"./style":350,"mapbox-gl":79,"mapbox-gl-style-spec":15,"oam-browser-filters":193,"react":349}],2:[function(require,module,exports){
+},{"./filters":2,"./style":371,"mapbox-gl":82,"mapbox-gl-style-spec":18,"oam-browser-filters":196,"react":370}],4:[function(require,module,exports){
+module.exports={
+    "version": 8,
+    "name": "Light",
+    "sources": {
+        "mapbox": {
+            "url": "mapbox://mapbox.mapbox-streets-v6",
+            "type": "vector"
+        },
+        "mapbox://mapbox.mapbox-terrain-v2": {
+            "url": "mapbox://mapbox.mapbox-terrain-v2",
+            "type": "vector"
+        }
+    },
+    "sprite": "mapbox://sprites/devseed/cife4hfep6f88smlxfhgdmdkk",
+    "glyphs": "mapbox://fonts/devseed/{fontstack}/{range}.pbf",
+    "layers": [
+        {
+            "id": "background",
+            "type": "background",
+            "layout": {
+                "visibility": "visible"
+            },
+            "paint": {
+                "background-color": "#eee"
+            },
+            "interactive": true
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible"
+            },
+            "filter": [
+                "==",
+                "class",
+                "snow"
+            ],
+            "type": "fill",
+            "source": "mapbox://mapbox.mapbox-terrain-v2",
+            "id": "landcover_snow",
+            "paint": {
+                "fill-color": "#fff",
+                "fill-opacity": 0.5
+            },
+            "source-layer": "landcover"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible"
+            },
+            "filter": [
+                "==",
+                "class",
+                "crop"
+            ],
+            "type": "fill",
+            "source": "mapbox://mapbox.mapbox-terrain-v2",
+            "id": "landcover_crop",
+            "paint": {
+                "fill-color": "#ececec",
+                "fill-opacity": 0.5
+            },
+            "source-layer": "landcover"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible"
+            },
+            "filter": [
+                "==",
+                "class",
+                "grass"
+            ],
+            "type": "fill",
+            "source": "mapbox://mapbox.mapbox-terrain-v2",
+            "id": "landcover_grass",
+            "paint": {
+                "fill-color": "#e5e5e5",
+                "fill-opacity": 0.5
+            },
+            "source-layer": "landcover"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible"
+            },
+            "filter": [
+                "==",
+                "class",
+                "scrub"
+            ],
+            "type": "fill",
+            "source": "mapbox://mapbox.mapbox-terrain-v2",
+            "id": "landcover_scrub",
+            "paint": {
+                "fill-color": "#e3e3e3",
+                "fill-opacity": 0.5
+            },
+            "source-layer": "landcover"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible"
+            },
+            "filter": [
+                "==",
+                "class",
+                "wood"
+            ],
+            "type": "fill",
+            "source": "mapbox://mapbox.mapbox-terrain-v2",
+            "id": "landcover_wood",
+            "paint": {
+                "fill-color": "#dcdcdc",
+                "fill-opacity": 0.5
+            },
+            "source-layer": "landcover"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "Polygon"
+                ],
+                [
+                    "==",
+                    "class",
+                    "industrial"
+                ]
+            ],
+            "type": "fill",
+            "source": "mapbox",
+            "id": "landuse_industrial",
+            "paint": {
+                "fill-color": "#fff",
+                "fill-opacity": 0.5
+            },
+            "source-layer": "landuse"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible"
+            },
+            "filter": [
+                "==",
+                "class",
+                "park"
+            ],
+            "type": "fill",
+            "source": "mapbox",
+            "id": "landuse_park",
+            "paint": {
+                "fill-color": "#e4e4e4"
+            },
+            "source-layer": "landuse"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible"
+            },
+            "filter": [
+                "==",
+                "class",
+                "wood"
+            ],
+            "type": "fill",
+            "source": "mapbox",
+            "id": "landuse_wood",
+            "paint": {
+                "fill-color": "#e0e0e0"
+            },
+            "source-layer": "landuse"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible"
+            },
+            "filter": [
+                "==",
+                "level",
+                94
+            ],
+            "type": "fill",
+            "source": "mapbox://mapbox.mapbox-terrain-v2",
+            "id": "hillshade_highlight_bright",
+            "paint": {
+                "fill-color": "#fff",
+                "fill-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            15,
+                            0.15
+                        ],
+                        [
+                            17,
+                            0.05
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "hillshade"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible"
+            },
+            "filter": [
+                "==",
+                "level",
+                90
+            ],
+            "type": "fill",
+            "source": "mapbox://mapbox.mapbox-terrain-v2",
+            "id": "hillshade_highlight_med",
+            "paint": {
+                "fill-color": "#fff",
+                "fill-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            15,
+                            0.15
+                        ],
+                        [
+                            17,
+                            0.05
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "hillshade"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible"
+            },
+            "filter": [
+                "==",
+                "level",
+                89
+            ],
+            "type": "fill",
+            "source": "mapbox://mapbox.mapbox-terrain-v2",
+            "id": "hillshade_shadow_faint",
+            "paint": {
+                "fill-color": "#666",
+                "fill-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            14,
+                            0.06
+                        ],
+                        [
+                            17,
+                            0.01
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "hillshade"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible"
+            },
+            "filter": [
+                "==",
+                "level",
+                78
+            ],
+            "type": "fill",
+            "source": "mapbox://mapbox.mapbox-terrain-v2",
+            "id": "hillshade_shadow_med",
+            "paint": {
+                "fill-color": "#666",
+                "fill-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            14,
+                            0.06
+                        ],
+                        [
+                            17,
+                            0.01
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "hillshade"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible"
+            },
+            "filter": [
+                "==",
+                "level",
+                67
+            ],
+            "type": "fill",
+            "source": "mapbox://mapbox.mapbox-terrain-v2",
+            "id": "hillshade_shadow_dark",
+            "paint": {
+                "fill-color": "#888888",
+                "fill-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            14,
+                            0.06
+                        ],
+                        [
+                            17,
+                            0.01
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "hillshade"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible"
+            },
+            "filter": [
+                "==",
+                "level",
+                56
+            ],
+            "type": "fill",
+            "source": "mapbox://mapbox.mapbox-terrain-v2",
+            "id": "hillshade_shadow_extreme",
+            "paint": {
+                "fill-color": "#999",
+                "fill-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            14,
+                            0.06
+                        ],
+                        [
+                            17,
+                            0.01
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "hillshade"
+        },
+        {
+            "id": "building",
+            "type": "fill",
+            "source": "mapbox",
+            "source-layer": "building",
+            "minzoom": 15,
+            "paint": {
+                "fill-outline-color": "#c0c0c0",
+                "fill-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            15,
+                            0
+                        ],
+                        [
+                            16.5,
+                            1
+                        ]
+                    ]
+                },
+                "fill-antialias": true,
+                "fill-color": "#cbcbcb"
+            },
+            "interactive": true
+        },
+        {
+            "id": "waterway",
+            "type": "line",
+            "source": "mapbox",
+            "source-layer": "waterway",
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "in",
+                    "class",
+                    "river",
+                    "canal"
+                ]
+            ],
+            "paint": {
+                "line-color": "#d6d6d6",
+                "line-width": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            6,
+                            0.25
+                        ],
+                        [
+                            20,
+                            6
+                        ]
+                    ]
+                }
+            },
+            "interactive": true
+        },
+        {
+            "id": "waterway_stream",
+            "type": "line",
+            "source": "mapbox",
+            "source-layer": "waterway",
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "==",
+                    "class",
+                    "stream"
+                ]
+            ],
+            "paint": {
+                "line-color": "#d6d6d6",
+                "line-width": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            13,
+                            0.75
+                        ],
+                        [
+                            20,
+                            4
+                        ]
+                    ]
+                }
+            },
+            "interactive": true
+        },
+        {
+            "id": "water",
+            "type": "fill",
+            "source": "mapbox",
+            "source-layer": "water",
+            "layout": {
+                "visibility": "visible"
+            },
+            "paint": {
+                "fill-color": "#d6d6d6"
+            },
+            "interactive": true
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "line-join": "miter",
+                "visibility": "visible"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "==",
+                    "type",
+                    "runway"
+                ]
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "aeroway_runway",
+            "paint": {
+                "line-width": {
+                    "base": 1.15,
+                    "stops": [
+                        [
+                            11,
+                            3
+                        ],
+                        [
+                            20,
+                            32
+                        ]
+                    ]
+                },
+                "line-color": "#fff",
+                "line-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            9,
+                            0.5
+                        ],
+                        [
+                            11,
+                            1
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "aeroway"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "line-join": "miter"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "==",
+                    "type",
+                    "taxiway"
+                ]
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "aeroway_taxiway",
+            "paint": {
+                "line-width": {
+                    "base": 1.15,
+                    "stops": [
+                        [
+                            10,
+                            0.25
+                        ],
+                        [
+                            11,
+                            1
+                        ],
+                        [
+                            20,
+                            8
+                        ]
+                    ]
+                },
+                "line-color": "#fff"
+            },
+            "source-layer": "aeroway"
+        },
+        {
+            "id": "tunnel_minor",
+            "type": "line",
+            "source": "mapbox",
+            "source-layer": "tunnel",
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "in",
+                    "class",
+                    "motorway_link",
+                    "street",
+                    "street_limited",
+                    "service",
+                    "driveway",
+                    "path"
+                ]
+            ],
+            "paint": {
+                "line-color": "#efefef",
+                "line-width": {
+                    "base": 1.55,
+                    "stops": [
+                        [
+                            4,
+                            0.25
+                        ],
+                        [
+                            20,
+                            20
+                        ]
+                    ]
+                },
+                "line-dasharray": [
+                    0.36,
+                    0.18
+                ]
+            },
+            "interactive": true
+        },
+        {
+            "id": "tunnel_major",
+            "type": "line",
+            "source": "mapbox",
+            "source-layer": "tunnel",
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "in",
+                    "class",
+                    "motorway",
+                    "main"
+                ]
+            ],
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.4,
+                    "stops": [
+                        [
+                            6,
+                            0.5
+                        ],
+                        [
+                            20,
+                            30
+                        ]
+                    ]
+                },
+                "line-dasharray": [
+                    0.28,
+                    0.14
+                ]
+            },
+            "interactive": true
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible"
+            },
+            "filter": [
+                "==",
+                "class",
+                "path"
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "road-path",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            15,
+                            1
+                        ],
+                        [
+                            18,
+                            4
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "road"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "in",
+                    "class",
+                    "street",
+                    "street_limited"
+                ]
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "road-street-low-zoom",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            12.5,
+                            0.5
+                        ],
+                        [
+                            14,
+                            2
+                        ],
+                        [
+                            18,
+                            18
+                        ]
+                    ]
+                },
+                "line-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            11.5,
+                            0
+                        ],
+                        [
+                            12,
+                            1
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "road"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "filter": [
+                "in",
+                "class",
+                "service",
+                "driveway"
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "road-service-driveway",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            14,
+                            0.5
+                        ],
+                        [
+                            18,
+                            12
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "road"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "filter": [
+                "==",
+                "class",
+                "motorway_link"
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "road-motorway_link",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            12.5,
+                            0.5
+                        ],
+                        [
+                            14,
+                            2
+                        ],
+                        [
+                            18,
+                            18
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "road"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "==",
+                    "class",
+                    "street_limited"
+                ]
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "road-street_limited",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            12.5,
+                            0.5
+                        ],
+                        [
+                            14,
+                            2
+                        ],
+                        [
+                            18,
+                            18
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "road"
+        },
+        {
+            "interactive": true,
+            "minzoom": 14,
+            "layout": {
+                "line-cap": "round",
+                "line-join": "round",
+                "visibility": "visible"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "==",
+                    "class",
+                    "street"
+                ]
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "road-street",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            12.5,
+                            0.3
+                        ],
+                        [
+                            14,
+                            2
+                        ],
+                        [
+                            18,
+                            18
+                        ]
+                    ]
+                },
+                "line-opacity": 1
+            },
+            "source-layer": "road"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "line-cap": "round",
+                "line-join": "round",
+                "visibility": "visible"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "==",
+                    "class",
+                    "main"
+                ]
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "road-main",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            6,
+                            0.5
+                        ],
+                        [
+                            18,
+                            26
+                        ]
+                    ]
+                },
+                "line-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            5,
+                            0
+                        ],
+                        [
+                            5.5,
+                            1
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "road"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "line-cap": "round",
+                "line-join": "round",
+                "visibility": "visible"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "class",
+                    "main"
+                ],
+                [
+                    "==",
+                    "type",
+                    "trunk"
+                ]
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "road-trunk",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            5,
+                            0.75
+                        ],
+                        [
+                            18,
+                            32
+                        ]
+                    ]
+                },
+                "line-opacity": 1
+            },
+            "source-layer": "road"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "line-cap": "round",
+                "line-join": "round",
+                "visibility": "visible"
+            },
+            "filter": [
+                "==",
+                "class",
+                "motorway"
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "road-motorway",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            5,
+                            0.75
+                        ],
+                        [
+                            18,
+                            32
+                        ]
+                    ]
+                },
+                "line-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            5,
+                            0
+                        ],
+                        [
+                            5.5,
+                            1
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "road"
+        },
+        {
+            "interactive": true,
+            "minzoom": 13,
+            "layout": {
+                "line-cap": "round",
+                "line-join": "round",
+                "visibility": "visible"
+            },
+            "filter": [
+                "in",
+                "class",
+                "major_rail",
+                "minor_rail"
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "road-rail",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            14,
+                            0.5
+                        ],
+                        [
+                            20,
+                            1
+                        ]
+                    ]
+                },
+                "line-opacity": 1
+            },
+            "source-layer": "road"
+        },
+        {
+            "interactive": true,
+            "minzoom": 13,
+            "layout": {
+                "line-cap": "butt",
+                "line-join": "miter",
+                "visibility": "visible"
+            },
+            "filter": [
+                "in",
+                "class",
+                "major_rail",
+                "minor_rail"
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "road-rail-tracks",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            14,
+                            4
+                        ],
+                        [
+                            20,
+                            8
+                        ]
+                    ]
+                },
+                "line-opacity": 1
+            },
+            "source-layer": "road"
+        },
+        {
+            "id": "bridge_minor_case",
+            "type": "line",
+            "source": "mapbox",
+            "source-layer": "bridge",
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "in",
+                    "class",
+                    "motorway_link",
+                    "street",
+                    "street_limited",
+                    "service",
+                    "driveway",
+                    "path"
+                ]
+            ],
+            "paint": {
+                "line-color": "#eee",
+                "line-width": {
+                    "base": 1.6,
+                    "stops": [
+                        [
+                            12,
+                            0.5
+                        ],
+                        [
+                            20,
+                            10
+                        ]
+                    ]
+                },
+                "line-gap-width": {
+                    "base": 1.55,
+                    "stops": [
+                        [
+                            4,
+                            0.25
+                        ],
+                        [
+                            20,
+                            20
+                        ]
+                    ]
+                }
+            },
+            "interactive": true
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "filter": [
+                "==",
+                "class",
+                "path"
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "bridge-path",
+            "paint": {
+                "line-color": "#efefef",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            15,
+                            1
+                        ],
+                        [
+                            18,
+                            4
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "bridge"
+        },
+        {
+            "interactive": true,
+            "minzoom": 11,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "maxzoom": 14.1,
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "in",
+                    "class",
+                    "street",
+                    "street_limited"
+                ]
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "bridge-street-low-zoom",
+            "paint": {
+                "line-color": "#efefef",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            12.5,
+                            0.5
+                        ],
+                        [
+                            14,
+                            2
+                        ],
+                        [
+                            18,
+                            18
+                        ]
+                    ]
+                },
+                "line-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            11.5,
+                            0
+                        ],
+                        [
+                            12,
+                            1
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "bridge"
+        },
+        {
+            "interactive": true,
+            "minzoom": 10,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "==",
+                    "class",
+                    "motorway_link"
+                ]
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "bridge-motorway_link",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            12.5,
+                            0.5
+                        ],
+                        [
+                            14,
+                            2
+                        ],
+                        [
+                            18,
+                            18
+                        ]
+                    ]
+                },
+                "line-opacity": 1
+            },
+            "source-layer": "bridge"
+        },
+        {
+            "interactive": true,
+            "minzoom": 14,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "==",
+                    "class",
+                    "street_limited"
+                ]
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "bridge-street_limited",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            12.5,
+                            0.5
+                        ],
+                        [
+                            14,
+                            2
+                        ],
+                        [
+                            18,
+                            18
+                        ]
+                    ]
+                },
+                "line-opacity": 1
+            },
+            "source-layer": "bridge"
+        },
+        {
+            "interactive": true,
+            "minzoom": 14,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "filter": [
+                "==",
+                "class",
+                "street"
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "bridge-street",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            12.5,
+                            0.5
+                        ],
+                        [
+                            14,
+                            2
+                        ],
+                        [
+                            18,
+                            18
+                        ]
+                    ]
+                },
+                "line-opacity": 1
+            },
+            "source-layer": "bridge"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "class",
+                    "main"
+                ],
+                [
+                    "!=",
+                    "type",
+                    "trunk"
+                ]
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "bridge-main",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            6,
+                            0.5
+                        ],
+                        [
+                            18,
+                            26
+                        ]
+                    ]
+                },
+                "line-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            5,
+                            0
+                        ],
+                        [
+                            5.5,
+                            1
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "bridge"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "class",
+                    "main"
+                ],
+                [
+                    "==",
+                    "type",
+                    "trunk"
+                ]
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "bridge-trunk",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            3,
+                            0.5
+                        ],
+                        [
+                            9,
+                            1.25
+                        ],
+                        [
+                            20,
+                            10
+                        ]
+                    ]
+                },
+                "line-opacity": 1
+            },
+            "source-layer": "bridge"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "filter": [
+                "==",
+                "class",
+                "motorway"
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "bridge-motorway",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            3,
+                            0.5
+                        ],
+                        [
+                            9,
+                            1.25
+                        ],
+                        [
+                            20,
+                            10
+                        ]
+                    ]
+                },
+                "line-opacity": 1
+            },
+            "source-layer": "bridge"
+        },
+        {
+            "interactive": true,
+            "minzoom": 13,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "butt",
+                "line-join": "miter",
+                "line-round-limit": 2
+            },
+            "filter": [
+                "in",
+                "class",
+                "major_rail",
+                "minor_rail"
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "bridge-rail",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            14,
+                            0.5
+                        ],
+                        [
+                            20,
+                            1
+                        ]
+                    ]
+                },
+                "line-opacity": 1
+            },
+            "source-layer": "bridge"
+        },
+        {
+            "interactive": true,
+            "minzoom": 14,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "butt",
+                "line-join": "miter",
+                "line-round-limit": 2
+            },
+            "filter": [
+                "in",
+                "class",
+                "major_rail",
+                "minor_rail"
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "bridge-rail-tracks",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            14,
+                            4
+                        ],
+                        [
+                            20,
+                            8
+                        ]
+                    ]
+                },
+                "line-opacity": 1
+            },
+            "source-layer": "bridge"
+        },
+        {
+            "interactive": true,
+            "minzoom": 14,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "butt",
+                "line-join": "miter",
+                "line-round-limit": 2
+            },
+            "filter": [
+                "==",
+                "class",
+                "aerialway"
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "bridge-rail-tracks_copy",
+            "paint": {
+                "line-color": "#fff",
+                "line-width": {
+                    "base": 1.5,
+                    "stops": [
+                        [
+                            14,
+                            0.5
+                        ],
+                        [
+                            20,
+                            1
+                        ]
+                    ]
+                },
+                "line-opacity": 1
+            },
+            "source-layer": "bridge"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible",
+                "line-join": "bevel"
+            },
+            "filter": [
+                "all",
+                [
+                    ">=",
+                    "admin_level",
+                    3
+                ],
+                [
+                    "==",
+                    "maritime",
+                    0
+                ]
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "admin-3-4-boundaries-bg",
+            "paint": {
+                "line-width": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            3,
+                            3.5
+                        ],
+                        [
+                            12,
+                            6
+                        ]
+                    ]
+                },
+                "line-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            2,
+                            0
+                        ],
+                        [
+                            5,
+                            0.75
+                        ]
+                    ]
+                },
+                "line-color": "#fff"
+            },
+            "source-layer": "admin"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible",
+                "line-join": "miter"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "admin_level",
+                    2
+                ],
+                [
+                    "==",
+                    "maritime",
+                    0
+                ],
+                [
+                    "==",
+                    "disputed",
+                    2
+                ]
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "admin-2-boundaries-bg",
+            "paint": {
+                "line-color": "#fff",
+                "line-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            3,
+                            0
+                        ],
+                        [
+                            4,
+                            0.75
+                        ]
+                    ]
+                },
+                "line-width": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            2,
+                            3.5
+                        ],
+                        [
+                            10,
+                            10
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "admin"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "visibility": "visible",
+                "line-join": "miter"
+            },
+            "filter": [
+                "all",
+                [
+                    ">=",
+                    "admin_level",
+                    3
+                ],
+                [
+                    "==",
+                    "maritime",
+                    0
+                ]
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "admin-3-4-boundaries",
+            "paint": {
+                "line-color": "#b5b5b5",
+                "line-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            2,
+                            0
+                        ],
+                        [
+                            3,
+                            1
+                        ]
+                    ]
+                },
+                "line-width": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            3,
+                            0.5
+                        ],
+                        [
+                            12,
+                            2
+                        ]
+                    ]
+                },
+                "line-dasharray": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            4,
+                            [
+                                2,
+                                0
+                            ]
+                        ],
+                        [
+                            5,
+                            [
+                                2,
+                                2,
+                                6,
+                                2
+                            ]
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "admin"
+        },
+        {
+            "interactive": true,
+            "minzoom": 1,
+            "layout": {
+                "visibility": "visible",
+                "line-join": "round",
+                "line-cap": "round"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "admin_level",
+                    2
+                ],
+                [
+                    "==",
+                    "maritime",
+                    0
+                ],
+                [
+                    "==",
+                    "disputed",
+                    0
+                ]
+            ],
+            "type": "line",
+            "source": "mapbox",
+            "id": "admin-2-boundaries",
+            "paint": {
+                "line-color": "#c0c0c0",
+                "line-opacity": 1,
+                "line-width": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            3,
+                            0.5
+                        ],
+                        [
+                            10,
+                            2
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "admin"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            15.95,
+                            9
+                        ],
+                        [
+                            16,
+                            11
+                        ]
+                    ]
+                },
+                "icon-image": "default-4-small",
+                "text-max-angle": 38,
+                "symbol-spacing": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            10,
+                            200
+                        ],
+                        [
+                            15,
+                            600
+                        ]
+                    ]
+                },
+                "text-font": [
+                    "DIN Offc Pro Bold",
+                    "Arial Unicode MS Regular"
+                ],
+                "symbol-placement": "line",
+                "visibility": "none",
+                "text-field": "{ref}",
+                "text-letter-spacing": 0.05
+            },
+            "filter": [
+                "all",
+                [
+                    "in",
+                    "shield",
+                    "us-interstate",
+                    "us-interstate-business",
+                    "us-interstate-duplex"
+                ],
+                [
+                    "<=",
+                    "reflen",
+                    6
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "interstate-motorway_shields",
+            "paint": {
+                "text-color": "#929292",
+                "text-halo-color": "#fff",
+                "icon-color": "white",
+                "icon-halo-width": 1,
+                "icon-halo-color": "rgba(0, 0, 0, 1)"
+            },
+            "source-layer": "road_label"
+        },
+        {
+            "interactive": true,
+            "minzoom": 12,
+            "layout": {
+                "text-font": [
+                    "DIN Offc Pro Italic",
+                    "Arial Unicode MS Regular"
+                ],
+                "visibility": "visible",
+                "symbol-placement": "line",
+                "text-field": "{name_en}",
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            13,
+                            12
+                        ],
+                        [
+                            18,
+                            16
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "==",
+                "class",
+                "river"
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "waterway-label",
+            "paint": {
+                "text-color": "#929292"
+            },
+            "source-layer": "waterway_label"
+        },
+        {
+            "interactive": true,
+            "minzoom": 12,
+            "layout": {
+                "symbol-placement": "line",
+                "text-field": "{name_en}",
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Bold"
+                ],
+                "text-transform": "none",
+                "text-letter-spacing": 0,
+                "text-padding": 0,
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            8,
+                            8
+                        ],
+                        [
+                            20,
+                            15
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "!in",
+                    "class",
+                    "motorway",
+                    "main",
+                    "street_limited",
+                    "street"
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "road-label-sm",
+            "paint": {
+                "text-halo-color": "#fff",
+                "text-halo-width": 2,
+                "text-color": "#929292"
+            },
+            "source-layer": "road_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "symbol-placement": "line",
+                "text-field": "{name_en}",
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Bold"
+                ],
+                "text-transform": "none",
+                "text-letter-spacing": 0,
+                "text-padding": 0,
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            8,
+                            8
+                        ],
+                        [
+                            20,
+                            16
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "in",
+                "class",
+                "street",
+                "street_limited"
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "road-label-med",
+            "paint": {
+                "text-halo-color": "#fff",
+                "text-halo-width": 2,
+                "text-color": "#929292"
+            },
+            "source-layer": "road_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "symbol-placement": "line",
+                "text-field": "{name_en}",
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Bold"
+                ],
+                "text-transform": "none",
+                "text-letter-spacing": 0,
+                "text-padding": 0,
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            8,
+                            8
+                        ],
+                        [
+                            20,
+                            17
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "in",
+                "class",
+                "motorway",
+                "main"
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "road-label-large",
+            "paint": {
+                "text-halo-color": "#fff",
+                "text-halo-width": 2,
+                "text-color": "#929292"
+            },
+            "source-layer": "road_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Regular"
+                ],
+                "visibility": "visible",
+                "text-field": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            12,
+                            ""
+                        ],
+                        [
+                            13,
+                            "{name_en}"
+                        ]
+                    ]
+                },
+                "text-max-width": 9,
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            10,
+                            10
+                        ],
+                        [
+                            18,
+                            18
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "all",
+                [
+                    "in",
+                    "maki",
+                    "airport",
+                    "heliport",
+                    "rocket"
+                ],
+                [
+                    "<=",
+                    "scalerank",
+                    2
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "airport-label",
+            "paint": {
+                "text-color": "#666",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1,
+                "text-halo-blur": 0
+            },
+            "source-layer": "poi_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-max-width": 8,
+                "visibility": "visible",
+                "text-field": "{name_en}",
+                "text-font": [
+                    "DIN Offc Pro Regular",
+                    "Arial Unicode MS Regular"
+                ],
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            10,
+                            10
+                        ],
+                        [
+                            18,
+                            14
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "maki",
+                    "park"
+                ],
+                [
+                    "<=",
+                    "scalerank",
+                    1
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "poi-parks-scalerank1",
+            "paint": {
+                "text-color": "#4f4f4f",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1
+            },
+            "source-layer": "poi_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-max-width": 8,
+                "visibility": "visible",
+                "text-field": "{name_en}",
+                "text-font": [
+                    "DIN Offc Pro Regular",
+                    "Arial Unicode MS Regular"
+                ],
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            10,
+                            10
+                        ],
+                        [
+                            18,
+                            14
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "all",
+                [
+                    "!in",
+                    "maki",
+                    "rail-light",
+                    "rail-metro",
+                    "rail",
+                    "airport",
+                    "airfield",
+                    "heliport",
+                    "rocket",
+                    "park",
+                    "golf",
+                    "cemetary",
+                    "zoo",
+                    "campsite",
+                    "swimming",
+                    "dog-park"
+                ],
+                [
+                    "<=",
+                    "scalerank",
+                    1
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "poi-scalerank1",
+            "paint": {
+                "text-color": "#5a5a5a",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1
+            },
+            "source-layer": "poi_label"
+        },
+        {
+            "id": "water-label",
+            "type": "symbol",
+            "source": "mapbox",
+            "source-layer": "water_label",
+            "minzoom": 5,
+            "layout": {
+                "text-font": [
+                    "DIN Offc Pro Italic",
+                    "Arial Unicode MS Regular"
+                ],
+                "visibility": "visible",
+                "text-field": "{name_en}",
+                "text-max-width": 7,
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            13,
+                            12
+                        ],
+                        [
+                            18,
+                            16
+                        ]
+                    ]
+                }
+            },
+            "paint": {
+                "text-color": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            "#929292"
+                        ],
+                        [
+                            20,
+                            "#929292"
+                        ]
+                    ]
+                }
+            },
+            "interactive": true
+        },
+        {
+            "interactive": true,
+            "minzoom": 12,
+            "layout": {
+                "text-field": "{name_en}",
+                "text-font": [
+                    "DIN Offc Pro Bold",
+                    "Arial Unicode MS Bold"
+                ],
+                "text-max-width": 7,
+                "text-letter-spacing": 0.1,
+                "text-transform": "uppercase",
+                "text-size": {
+                    "stops": [
+                        [
+                            12,
+                            10
+                        ],
+                        [
+                            16,
+                            14
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "Point"
+                ],
+                [
+                    "in",
+                    "type",
+                    "suburb",
+                    "neighbourhood"
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "place_label_neighborhood",
+            "paint": {
+                "text-color": "#666",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1,
+                "text-halo-blur": 1,
+                "text-opacity": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            0
+                        ],
+                        [
+                            12,
+                            0.66
+                        ],
+                        [
+                            13,
+                            1
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "place_label"
+        },
+        {
+            "interactive": true,
+            "minzoom": 8,
+            "layout": {
+                "text-field": "{name_en}",
+                "text-font": [
+                    "DIN Offc Pro Regular",
+                    "Arial Unicode MS Bold"
+                ],
+                "text-max-width": 15,
+                "text-size": {
+                    "stops": [
+                        [
+                            6,
+                            10
+                        ],
+                        [
+                            12,
+                            13
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "Point"
+                ],
+                [
+                    "in",
+                    "type",
+                    "town",
+                    "village",
+                    "hamlet"
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "place_label_other",
+            "paint": {
+                "text-color": "#666",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1,
+                "text-halo-blur": 1
+            },
+            "source-layer": "place_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-field": "{name_en}",
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Bold"
+                ],
+                "text-max-width": 10,
+                "text-anchor": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            "top"
+                        ],
+                        [
+                            6,
+                            "center"
+                        ]
+                    ]
+                },
+                "text-offset": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            [
+                                0,
+                                0.1
+                            ]
+                        ],
+                        [
+                            6,
+                            [
+                                0,
+                                0
+                            ]
+                        ]
+                    ]
+                },
+                "text-size": {
+                    "stops": [
+                        [
+                            6,
+                            11
+                        ],
+                        [
+                            14,
+                            19
+                        ]
+                    ]
+                }
+            },
+            "maxzoom": 16,
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "type",
+                    "city"
+                ],
+                [
+                    ">",
+                    "scalerank",
+                    4
+                ],
+                [
+                    "in",
+                    "ldir",
+                    "S",
+                    "E",
+                    "SE",
+                    "SW"
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "place_label_city_small_s",
+            "paint": {
+                "text-color": "#666",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1.5,
+                "text-halo-blur": 0
+            },
+            "source-layer": "place_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-field": "{name_en}",
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Bold"
+                ],
+                "text-max-width": 10,
+                "text-anchor": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            "bottom"
+                        ],
+                        [
+                            6,
+                            "center"
+                        ]
+                    ]
+                },
+                "text-offset": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            [
+                                0,
+                                -0.2
+                            ]
+                        ],
+                        [
+                            6,
+                            [
+                                0,
+                                0
+                            ]
+                        ]
+                    ]
+                },
+                "text-size": {
+                    "stops": [
+                        [
+                            6,
+                            11
+                        ],
+                        [
+                            14,
+                            19
+                        ]
+                    ]
+                }
+            },
+            "maxzoom": 16,
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "type",
+                    "city"
+                ],
+                [
+                    ">",
+                    "scalerank",
+                    4
+                ],
+                [
+                    "in",
+                    "ldir",
+                    "N",
+                    "W",
+                    "NW",
+                    "NE"
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "place_label_city_small_n",
+            "paint": {
+                "text-color": "#666",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1.5,
+                "text-halo-blur": 0
+            },
+            "source-layer": "place_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-field": "{name_en}",
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Bold"
+                ],
+                "text-max-width": 10,
+                "text-anchor": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            "top"
+                        ],
+                        [
+                            6,
+                            "center"
+                        ]
+                    ]
+                },
+                "text-offset": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            [
+                                0,
+                                0.1
+                            ]
+                        ],
+                        [
+                            6,
+                            [
+                                0,
+                                0
+                            ]
+                        ]
+                    ]
+                },
+                "text-size": {
+                    "stops": [
+                        [
+                            5,
+                            11
+                        ],
+                        [
+                            12,
+                            19
+                        ]
+                    ],
+                    "base": 0.9
+                }
+            },
+            "maxzoom": 16,
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "type",
+                    "city"
+                ],
+                [
+                    "<=",
+                    "scalerank",
+                    4
+                ],
+                [
+                    ">",
+                    "scalerank",
+                    1
+                ],
+                [
+                    "in",
+                    "ldir",
+                    "S",
+                    "E",
+                    "SE",
+                    "SW"
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "place_label_city_medium_s",
+            "paint": {
+                "text-color": "#666",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1.5,
+                "text-halo-blur": 0
+            },
+            "source-layer": "place_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-field": "{name_en}",
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Bold"
+                ],
+                "text-max-width": 10,
+                "text-anchor": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            "bottom"
+                        ],
+                        [
+                            6,
+                            "center"
+                        ]
+                    ]
+                },
+                "text-offset": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            [
+                                0,
+                                -0.2
+                            ]
+                        ],
+                        [
+                            6,
+                            [
+                                0,
+                                0
+                            ]
+                        ]
+                    ]
+                },
+                "text-size": {
+                    "stops": [
+                        [
+                            5,
+                            11
+                        ],
+                        [
+                            12,
+                            19
+                        ]
+                    ],
+                    "base": 0.9
+                }
+            },
+            "maxzoom": 16,
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "type",
+                    "city"
+                ],
+                [
+                    "<=",
+                    "scalerank",
+                    4
+                ],
+                [
+                    ">",
+                    "scalerank",
+                    1
+                ],
+                [
+                    "in",
+                    "ldir",
+                    "N",
+                    "W",
+                    "NW",
+                    "NE"
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "place_label_city_medium_n",
+            "paint": {
+                "text-color": "#666",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1.5,
+                "text-halo-blur": 0
+            },
+            "source-layer": "place_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-field": "{name_en}",
+                "text-font": [
+                    "DIN Offc Pro Bold",
+                    "Arial Unicode MS Bold"
+                ],
+                "text-max-width": 15,
+                "text-transform": "none",
+                "text-anchor": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            "top"
+                        ],
+                        [
+                            6,
+                            "center"
+                        ]
+                    ]
+                },
+                "text-offset": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            [
+                                0,
+                                0.1
+                            ]
+                        ],
+                        [
+                            6,
+                            [
+                                0,
+                                0
+                            ]
+                        ]
+                    ]
+                },
+                "text-size": {
+                    "stops": [
+                        [
+                            4,
+                            11
+                        ],
+                        [
+                            10,
+                            20
+                        ]
+                    ],
+                    "base": 0.9
+                }
+            },
+            "maxzoom": 16,
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "type",
+                    "city"
+                ],
+                [
+                    "<=",
+                    "scalerank",
+                    1
+                ],
+                [
+                    "in",
+                    "ldir",
+                    "S",
+                    "SE",
+                    "SW",
+                    "E"
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "place_label_city_large_s",
+            "paint": {
+                "text-color": "#666",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1.5,
+                "text-halo-blur": 0
+            },
+            "source-layer": "place_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-field": "{name_en}",
+                "text-font": [
+                    "DIN Offc Pro Bold",
+                    "Arial Unicode MS Bold"
+                ],
+                "text-max-width": 5,
+                "text-transform": "none",
+                "text-anchor": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            "bottom"
+                        ],
+                        [
+                            6,
+                            "center"
+                        ]
+                    ]
+                },
+                "text-offset": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            [
+                                0,
+                                -0.2
+                            ]
+                        ],
+                        [
+                            6,
+                            [
+                                0,
+                                0
+                            ]
+                        ]
+                    ]
+                },
+                "symbol-avoid-edges": false,
+                "text-size": {
+                    "stops": [
+                        [
+                            4,
+                            11
+                        ],
+                        [
+                            10,
+                            20
+                        ]
+                    ],
+                    "base": 0.9
+                }
+            },
+            "maxzoom": 16,
+            "filter": [
+                "all",
+                [
+                    "<=",
+                    "scalerank",
+                    1
+                ],
+                [
+                    "in",
+                    "ldir",
+                    "N",
+                    "NE",
+                    "NW",
+                    "W"
+                ],
+                [
+                    "==",
+                    "type",
+                    "city"
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "place_label_city_large_n",
+            "paint": {
+                "text-color": "#666",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1.5,
+                "text-halo-blur": 0
+            },
+            "source-layer": "place_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-max-width": 8,
+                "visibility": "none",
+                "symbol-placement": "point",
+                "text-field": "{name_en}",
+                "text-line-height": 1.2,
+                "text-letter-spacing": 0.1,
+                "text-font": [
+                    "DIN Offc Pro Regular",
+                    "Arial Unicode MS Regular"
+                ],
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            4,
+                            12
+                        ],
+                        [
+                            6,
+                            16
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "Point"
+                ],
+                [
+                    "in",
+                    "labelrank",
+                    4,
+                    5,
+                    6
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "marine_label_point_other",
+            "paint": {
+                "text-color": "#666"
+            },
+            "source-layer": "marine_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-max-width": 8,
+                "visibility": "visible",
+                "symbol-placement": "point",
+                "text-field": "{name_en}",
+                "text-line-height": 1.3,
+                "text-letter-spacing": 0.1,
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Regular"
+                ],
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            3,
+                            13
+                        ],
+                        [
+                            5,
+                            18
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "Point"
+                ],
+                [
+                    "==",
+                    "labelrank",
+                    3
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "marine_label_point_3",
+            "paint": {
+                "text-color": "#666",
+                "text-opacity": 0.25
+            },
+            "source-layer": "marine_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-max-width": 8,
+                "visibility": "visible",
+                "symbol-placement": "point",
+                "text-field": "{name_en}",
+                "text-line-height": 1.2,
+                "text-letter-spacing": 0,
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Regular"
+                ],
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            3,
+                            14
+                        ],
+                        [
+                            5,
+                            24
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "Point"
+                ],
+                [
+                    "==",
+                    "labelrank",
+                    2
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "marine_label_point_2",
+            "paint": {
+                "text-color": "#666",
+                "text-opacity": 0.25
+            },
+            "source-layer": "marine_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-max-width": 4,
+                "visibility": "visible",
+                "symbol-placement": "point",
+                "text-field": "{name_en}",
+                "text-line-height": 1.5,
+                "text-letter-spacing": 0.25,
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Regular"
+                ],
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            1,
+                            12
+                        ],
+                        [
+                            4,
+                            30
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "Point"
+                ],
+                [
+                    "==",
+                    "labelrank",
+                    1
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "marine_label_point_1",
+            "paint": {
+                "text-color": "#666",
+                "text-opacity": 0.25
+            },
+            "source-layer": "marine_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-max-width": 15,
+                "visibility": "visible",
+                "symbol-placement": "line",
+                "text-field": "{name_en}",
+                "text-line-height": 1.2,
+                "text-letter-spacing": 0,
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Regular"
+                ],
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            4,
+                            12
+                        ],
+                        [
+                            6,
+                            16
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "in",
+                    "labelrank",
+                    4,
+                    5,
+                    6
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "marine_label_line_other",
+            "paint": {
+                "text-color": "#666",
+                "text-opacity": 0.25
+            },
+            "source-layer": "marine_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-max-width": 15,
+                "visibility": "visible",
+                "symbol-placement": "line",
+                "text-field": "{name_en}",
+                "text-line-height": 1.2,
+                "text-letter-spacing": 0,
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Regular"
+                ],
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            3,
+                            13
+                        ],
+                        [
+                            5,
+                            18
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "==",
+                    "labelrank",
+                    3
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "marine_label_line_3",
+            "paint": {
+                "text-color": "#666",
+                "text-opacity": 0.25
+            },
+            "source-layer": "marine_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-max-width": 15,
+                "visibility": "visible",
+                "symbol-placement": "line",
+                "text-field": "{name_en}",
+                "text-line-height": 1.2,
+                "text-letter-spacing": 0,
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Regular"
+                ],
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            3,
+                            14
+                        ],
+                        [
+                            5,
+                            24
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "==",
+                    "labelrank",
+                    2
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "marine_label_line_2",
+            "paint": {
+                "text-color": "#666",
+                "text-opacity": 0.25
+            },
+            "source-layer": "marine_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-max-width": 15,
+                "visibility": "visible",
+                "symbol-placement": "line",
+                "text-field": "{name_en}",
+                "text-line-height": 1.2,
+                "text-letter-spacing": 0.4,
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Regular"
+                ],
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            3,
+                            25
+                        ],
+                        [
+                            4,
+                            30
+                        ]
+                    ]
+                }
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "$type",
+                    "LineString"
+                ],
+                [
+                    "==",
+                    "labelrank",
+                    1
+                ]
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "marine_label_line_1",
+            "paint": {
+                "text-color": "#666",
+                "text-opacity": 0.25
+            },
+            "source-layer": "marine_label"
+        },
+        {
+            "interactive": true,
+            "minzoom": 3,
+            "layout": {
+                "text-transform": "uppercase",
+                "visibility": "visible",
+                "text-field": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            "{abbr}"
+                        ],
+                        [
+                            4,
+                            "{name_en}"
+                        ]
+                    ]
+                },
+                "text-font": [
+                    "DIN Offc Pro Bold",
+                    "Arial Unicode MS Regular"
+                ],
+                "text-letter-spacing": 0.15,
+                "text-max-width": 7,
+                "text-size": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            4,
+                            9
+                        ],
+                        [
+                            7,
+                            18
+                        ]
+                    ]
+                }
+            },
+            "maxzoom": 7,
+            "filter": [
+                ">=",
+                "area",
+                80000
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "state-label-lg",
+            "paint": {
+                "text-color": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            "#929292"
+                        ],
+                        [
+                            20,
+                            "#929292"
+                        ]
+                    ]
+                }
+            },
+            "source-layer": "state_label"
+        },
+        {
+            "interactive": true,
+            "minzoom": 1,
+            "layout": {
+                "text-field": "{name_en}",
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Regular"
+                ],
+                "text-max-width": 7,
+                "text-size": {
+                    "stops": [
+                        [
+                            3,
+                            8
+                        ],
+                        [
+                            9,
+                            18
+                        ]
+                    ],
+                    "base": 0.9
+                }
+            },
+            "maxzoom": 10,
+            "filter": [
+                ">=",
+                "scalerank",
+                5
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "country-label-sm",
+            "paint": {
+                "text-color": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            "#444"
+                        ],
+                        [
+                            10,
+                            "#888"
+                        ]
+                    ]
+                },
+                "text-halo-color": "#fff",
+                "text-halo-width": 1,
+                "text-halo-blur": 1
+            },
+            "source-layer": "country_label"
+        },
+        {
+            "interactive": true,
+            "minzoom": 1,
+            "layout": {
+                "text-field": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            "{code}"
+                        ],
+                        [
+                            2,
+                            "{name_en}"
+                        ]
+                    ]
+                },
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Regular"
+                ],
+                "text-max-width": 7,
+                "text-size": {
+                    "stops": [
+                        [
+                            2,
+                            8
+                        ],
+                        [
+                            7,
+                            18
+                        ]
+                    ],
+                    "base": 0.9
+                }
+            },
+            "maxzoom": 8,
+            "filter": [
+                "in",
+                "scalerank",
+                3,
+                4
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "country-label-md",
+            "paint": {
+                "text-color": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            "#444"
+                        ],
+                        [
+                            10,
+                            "#888"
+                        ]
+                    ]
+                },
+                "text-halo-color": "#fff",
+                "text-halo-width": 1,
+                "text-halo-blur": 1
+            },
+            "source-layer": "country_label"
+        },
+        {
+            "interactive": true,
+            "layout": {
+                "text-field": "{name_en}",
+                "text-font": [
+                    "DIN Offc Pro Medium",
+                    "Arial Unicode MS Regular"
+                ],
+                "text-max-width": 6,
+                "text-size": {
+                    "stops": [
+                        [
+                            1,
+                            9
+                        ],
+                        [
+                            5,
+                            18
+                        ]
+                    ],
+                    "base": 0.9
+                }
+            },
+            "maxzoom": 12,
+            "filter": [
+                "in",
+                "scalerank",
+                1,
+                2
+            ],
+            "type": "symbol",
+            "source": "mapbox",
+            "id": "country-label-lg",
+            "paint": {
+                "text-color": {
+                    "base": 1,
+                    "stops": [
+                        [
+                            0,
+                            "#444"
+                        ],
+                        [
+                            10,
+                            "#888"
+                        ]
+                    ]
+                },
+                "text-halo-color": "#fff",
+                "text-halo-width": 1,
+                "text-halo-blur": 1
+            },
+            "source-layer": "country_label"
+        }
+    ],
+    "created": "2015-10-05T15:59:06.898Z",
+    "id": "cife4hfep6f88smlxfhgdmdkk",
+    "modified": "2015-10-05T15:59:48.301Z",
+    "owner": "devseed",
+    "draft": false
+}
+},{}],5:[function(require,module,exports){
 
-},{}],3:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 // http://wiki.commonjs.org/wiki/Unit_Testing/1.0
 //
 // THIS IS NOT TESTED NOR LIKELY TO WORK OUTSIDE V8!
@@ -476,7 +4241,7 @@ var objectKeys = Object.keys || function (obj) {
   return keys;
 };
 
-},{"util/":13}],4:[function(require,module,exports){
+},{"util/":16}],7:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -501,7 +4266,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],5:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 (function (process){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -729,7 +4494,7 @@ var substr = 'ab'.substr(-1) === 'b'
 ;
 
 }).call(this,require('_process'))
-},{"_process":6}],6:[function(require,module,exports){
+},{"_process":9}],9:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -822,7 +4587,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],7:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 (function (global){
 /*! https://mths.be/punycode v1.3.2 by @mathias */
 ;(function(root) {
@@ -1356,7 +5121,7 @@ process.umask = function() { return 0; };
 }(this));
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],8:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -1442,7 +5207,7 @@ var isArray = Array.isArray || function (xs) {
   return Object.prototype.toString.call(xs) === '[object Array]';
 };
 
-},{}],9:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -1529,13 +5294,13 @@ var objectKeys = Object.keys || function (obj) {
   return res;
 };
 
-},{}],10:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 'use strict';
 
 exports.decode = exports.parse = require('./decode');
 exports.encode = exports.stringify = require('./encode');
 
-},{"./decode":8,"./encode":9}],11:[function(require,module,exports){
+},{"./decode":11,"./encode":12}],14:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -2244,14 +6009,14 @@ function isNullOrUndefined(arg) {
   return  arg == null;
 }
 
-},{"punycode":7,"querystring":10}],12:[function(require,module,exports){
+},{"punycode":10,"querystring":13}],15:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],13:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -2841,7 +6606,7 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":12,"_process":6,"inherits":4}],14:[function(require,module,exports){
+},{"./support/isBuffer":15,"_process":9,"inherits":7}],17:[function(require,module,exports){
 
 /**
  * @license
@@ -5308,7 +9073,7 @@ function hasOwnProperty(obj, prop) {
 
 }).call(this);
 
-},{}],15:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 exports.v6 = require('./reference/v6.json');
 exports.v7 = require('./reference/v7.json');
 exports.v8 = require('./reference/v8.json');
@@ -5321,7 +9086,7 @@ exports.composite = require('./lib/composite');
 exports.createSprite = require('./lib/create_sprite');
 exports.diff = require('./lib/diff');
 
-},{"./lib/composite":16,"./lib/create_sprite":17,"./lib/diff":18,"./lib/format":19,"./lib/migrate":20,"./lib/validate":21,"./reference/latest":52,"./reference/v6.json":53,"./reference/v7.json":54,"./reference/v8.json":55}],16:[function(require,module,exports){
+},{"./lib/composite":19,"./lib/create_sprite":20,"./lib/diff":21,"./lib/format":22,"./lib/migrate":23,"./lib/validate":24,"./reference/latest":55,"./reference/v6.json":56,"./reference/v7.json":57,"./reference/v8.json":58}],19:[function(require,module,exports){
 'use strict';
 
 module.exports = function (style) {
@@ -5365,7 +9130,7 @@ module.exports = function (style) {
     return style;
 };
 
-},{}],17:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 'use strict';
 
 var spritesmith = require('spritesmith'),
@@ -5396,7 +9161,7 @@ function createSprite(src, pixelRatio, callback) {
 
 module.exports = createSprite;
 
-},{"path":5,"spritesmith":49}],18:[function(require,module,exports){
+},{"path":8,"spritesmith":52}],21:[function(require,module,exports){
 'use strict';
 
 var isEqual = require('lodash.isequal');
@@ -5705,7 +9470,7 @@ function diffStyles(before, after) {
 module.exports = diffStyles;
 module.exports.operations = operations;
 
-},{"lodash.isequal":28}],19:[function(require,module,exports){
+},{"lodash.isequal":31}],22:[function(require,module,exports){
 'use strict';
 
 var reference = require('../reference/v7.json'),
@@ -5736,7 +9501,7 @@ module.exports = function format(style) {
     return JSON.stringify(style, null, 2);
 };
 
-},{"../reference/v7.json":54,"sort-object":36}],20:[function(require,module,exports){
+},{"../reference/v7.json":57,"sort-object":39}],23:[function(require,module,exports){
 'use strict';
 
 /**
@@ -5771,7 +9536,7 @@ module.exports = function(style) {
     return style;
 };
 
-},{"../migrations/v7":24,"../migrations/v8":25}],21:[function(require,module,exports){
+},{"../migrations/v7":27,"../migrations/v8":28}],24:[function(require,module,exports){
 'use strict';
 
 var jsonlint = require('jsonlint-lines-primitives');
@@ -5848,7 +9613,7 @@ module.exports.parsed = require('./validate/parsed');
  */
 module.exports.latest = require('./validate/latest');
 
-},{"../":15,"./validate/latest":22,"./validate/parsed":23,"jsonlint-lines-primitives":27}],22:[function(require,module,exports){
+},{"../":18,"./validate/latest":25,"./validate/parsed":26,"jsonlint-lines-primitives":30}],25:[function(require,module,exports){
 'use strict';
 
 var reference = require('../../reference/latest.js');
@@ -5858,7 +9623,7 @@ module.exports = function(style) {
     return validate(style, reference);
 };
 
-},{"../../reference/latest.js":52,"./parsed":23}],23:[function(require,module,exports){
+},{"../../reference/latest.js":55,"./parsed":26}],26:[function(require,module,exports){
 'use strict';
 
 var parseCSSColor = require('csscolorparser').parseCSSColor;
@@ -6279,7 +10044,7 @@ function unbundle(_) {
     }
 }
 
-},{"csscolorparser":26,"util":13}],24:[function(require,module,exports){
+},{"csscolorparser":29,"util":16}],27:[function(require,module,exports){
 'use strict';
 
 var ref = require('../reference/v7');
@@ -6509,7 +10274,7 @@ function interp(a, b, t) {
 }
 
 
-},{"../reference/v7":54}],25:[function(require,module,exports){
+},{"../reference/v7":57}],28:[function(require,module,exports){
 'use strict';
 
 var Reference = require('../reference/v8');
@@ -6777,7 +10542,7 @@ module.exports = function(style) {
     return style;
 };
 
-},{"../reference/v8":55,"url":11}],26:[function(require,module,exports){
+},{"../reference/v8":58,"url":14}],29:[function(require,module,exports){
 // (c) Dean McNamee <dean@gmail.com>, 2012.
 //
 // https://github.com/deanm/css-color-parser-js
@@ -6979,7 +10744,7 @@ function parseCSSColor(css_str) {
 
 try { exports.parseCSSColor = parseCSSColor } catch(e) { }
 
-},{}],27:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 (function (process){
 /* parser generated by jison 0.4.15 */
 /*
@@ -7674,7 +11439,7 @@ if (typeof module !== 'undefined' && require.main === module) {
 }
 }
 }).call(this,require('_process'))
-},{"_process":6,"fs":2,"path":5}],28:[function(require,module,exports){
+},{"_process":9,"fs":5,"path":8}],31:[function(require,module,exports){
 /**
  * lodash 3.0.4 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -7738,7 +11503,7 @@ function isEqual(value, other, customizer, thisArg) {
 
 module.exports = isEqual;
 
-},{"lodash._baseisequal":29,"lodash._bindcallback":35}],29:[function(require,module,exports){
+},{"lodash._baseisequal":32,"lodash._bindcallback":38}],32:[function(require,module,exports){
 /**
  * lodash 3.0.7 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -8082,7 +11847,7 @@ function isObject(value) {
 
 module.exports = baseIsEqual;
 
-},{"lodash.isarray":30,"lodash.istypedarray":31,"lodash.keys":32}],30:[function(require,module,exports){
+},{"lodash.isarray":33,"lodash.istypedarray":34,"lodash.keys":35}],33:[function(require,module,exports){
 /**
  * lodash 3.0.4 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -8264,7 +12029,7 @@ function isNative(value) {
 
 module.exports = isArray;
 
-},{}],31:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 /**
  * lodash 3.0.2 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -8376,7 +12141,7 @@ function isTypedArray(value) {
 
 module.exports = isTypedArray;
 
-},{}],32:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 /**
  * lodash 3.1.2 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -8614,7 +12379,7 @@ function keysIn(object) {
 
 module.exports = keys;
 
-},{"lodash._getnative":33,"lodash.isarguments":34,"lodash.isarray":30}],33:[function(require,module,exports){
+},{"lodash._getnative":36,"lodash.isarguments":37,"lodash.isarray":33}],36:[function(require,module,exports){
 /**
  * lodash 3.9.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -8753,7 +12518,7 @@ function isNative(value) {
 
 module.exports = getNative;
 
-},{}],34:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
 /**
  * lodash 3.0.4 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -8861,7 +12626,7 @@ function isArguments(value) {
 
 module.exports = isArguments;
 
-},{}],35:[function(require,module,exports){
+},{}],38:[function(require,module,exports){
 /**
  * lodash 3.0.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -8928,7 +12693,7 @@ function identity(value) {
 
 module.exports = bindCallback;
 
-},{}],36:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 /*!
  * sort-keys <https://github.com/helpers/sort-keys>
  *
@@ -8995,7 +12760,7 @@ module.exports = function (obj, options) {
 
   return o;
 };
-},{"sort-asc":37,"sort-desc":38}],37:[function(require,module,exports){
+},{"sort-asc":40,"sort-desc":41}],40:[function(require,module,exports){
 /*!
  * sort-asc <https://github.com/helpers/sort-asc>
  *
@@ -9008,7 +12773,7 @@ module.exports = function (obj, options) {
 module.exports = function (a, b) {
   return b < a ? -1 : 1;
 };
-},{}],38:[function(require,module,exports){
+},{}],41:[function(require,module,exports){
 /*!
  * sort-desc <https://github.com/helpers/sort-desc>
  *
@@ -9021,7 +12786,7 @@ module.exports = function (a, b) {
 module.exports = function (a, b) {
   return a < b ? -1 : 1;
 };
-},{}],39:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 (function (process){
 /*global setImmediate: false, setTimeout: false, console: false */
 (function () {
@@ -9983,7 +13748,7 @@ module.exports = function (a, b) {
 }());
 
 }).call(this,require('_process'))
-},{"_process":6}],40:[function(require,module,exports){
+},{"_process":9}],43:[function(require,module,exports){
 // Add in reverse-diagonal algorithm
 exports.sort = function (items) {
   // Sort the items by their diagonal
@@ -10013,7 +13778,7 @@ exports.placeItems = function (items) {
   return items;
 };
 
-},{}],41:[function(require,module,exports){
+},{}],44:[function(require,module,exports){
 // Load in our binary packer
 var pack = require('bin-pack');
 
@@ -10030,7 +13795,7 @@ exports.placeItems = function (items) {
   return items;
 };
 
-},{"bin-pack":47}],42:[function(require,module,exports){
+},{"bin-pack":50}],45:[function(require,module,exports){
 // Add in diagonal algorithm
 exports.sort = function (items) {
   // Sort the items by their diagonal
@@ -10060,7 +13825,7 @@ exports.placeItems = function (items) {
   return items;
 };
 
-},{}],43:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 // Add in left-right algorithm
 exports.sort = function (items) {
   // Sort the items by their width
@@ -10086,7 +13851,7 @@ exports.placeItems = function (items) {
   return items;
 };
 
-},{}],44:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 // Add in top-down algorithm
 exports.sort = function (items) {
   // Sort the items by their height
@@ -10112,7 +13877,7 @@ exports.placeItems = function (items) {
   return items;
 };
 
-},{}],45:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 // Load in packing.smith (from spritesmith) and create algorithm store
 var PackingSmith = require('./smiths/packing.smith.js'),
     assert = require('assert'),
@@ -10199,7 +13964,7 @@ addAlgorithm('binary-tree', require('./algorithms/binary-tree.algorithm.js'));
 // Expose Layout to the outside
 module.exports = Layout;
 
-},{"./algorithms/alt-diagonal.algorithm.js":40,"./algorithms/binary-tree.algorithm.js":41,"./algorithms/diagonal.algorithm.js":42,"./algorithms/left-right.algorithm.js":43,"./algorithms/top-down.algorithm.js":44,"./smiths/packing.smith.js":46,"assert":3}],46:[function(require,module,exports){
+},{"./algorithms/alt-diagonal.algorithm.js":43,"./algorithms/binary-tree.algorithm.js":44,"./algorithms/diagonal.algorithm.js":45,"./algorithms/left-right.algorithm.js":46,"./algorithms/top-down.algorithm.js":47,"./smiths/packing.smith.js":49,"assert":6}],49:[function(require,module,exports){
 function PackingSmith(algorithm, options) {
   // Define items and save algorithm for later
   this.items = [];
@@ -10324,7 +14089,7 @@ PackingSmith.prototype = {
 // Export PackingSmith
 module.exports = PackingSmith;
 
-},{}],47:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 "use strict";
 
 var GrowingPacker = require('./packer.growing.js');
@@ -10360,7 +14125,7 @@ module.exports = function(items, options) {
 	return ret;
 };
 
-},{"./packer.growing.js":48}],48:[function(require,module,exports){
+},{"./packer.growing.js":51}],51:[function(require,module,exports){
 /******************************************************************************
 
 This is a binary tree based bin packing algorithm that is more complex than
@@ -10516,7 +14281,7 @@ GrowingPacker.prototype = {
 module.exports = GrowingPacker;
 
 
-},{}],49:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 // Load in dependencies
 var async = require('async');
 var Layout = require('layout');
@@ -10701,7 +14466,7 @@ spritesmith.CanvasSmith = CanvasSmith;
 // Export spritesmith
 module.exports = spritesmith;
 
-},{"./smiths/canvas.smith.js":50,"./smiths/engine.smith.js":51,"async":39,"layout":45}],50:[function(require,module,exports){
+},{"./smiths/canvas.smith.js":53,"./smiths/engine.smith.js":54,"async":42,"layout":48}],53:[function(require,module,exports){
 function CanvasSmith(canvas) {
   this.canvas = canvas;
 }
@@ -10737,7 +14502,7 @@ CanvasSmith.prototype = {
 // Export CanvasSmith
 module.exports = CanvasSmith;
 
-},{}],51:[function(require,module,exports){
+},{}],54:[function(require,module,exports){
 var async = require('async');
 function EngineSmith(engine) {
   this.engine = engine;
@@ -10775,10 +14540,10 @@ EngineSmith.prototype = {
 // Export EngineSmith
 module.exports = EngineSmith;
 
-},{"async":39}],52:[function(require,module,exports){
+},{"async":42}],55:[function(require,module,exports){
 module.exports = require('./v8.json');
 
-},{"./v8.json":55}],53:[function(require,module,exports){
+},{"./v8.json":58}],56:[function(require,module,exports){
 module.exports={
   "$version": 6,
   "$root": {
@@ -11889,7 +15654,7 @@ module.exports={
   }
 }
 
-},{}],54:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 module.exports={
   "$version": 7,
   "$root": {
@@ -13082,7 +16847,7 @@ module.exports={
   }
 }
 
-},{}],55:[function(require,module,exports){
+},{}],58:[function(require,module,exports){
 module.exports={
   "$version": 8,
   "$root": {
@@ -14404,7 +18169,7 @@ module.exports={
   }
 }
 
-},{}],56:[function(require,module,exports){
+},{}],59:[function(require,module,exports){
 'use strict';
 
 // a simple wrapper around a single arraybuffer
@@ -14484,7 +18249,7 @@ Buffer.prototype = {
     }
 };
 
-},{}],57:[function(require,module,exports){
+},{}],60:[function(require,module,exports){
 'use strict';
 
 var LineVertexBuffer = require('./line_vertex_buffer');
@@ -14518,7 +18283,7 @@ module.exports = function(bufferset) {
     };
 };
 
-},{"./circle_vertex_buffer":58,"./collision_box_vertex_buffer":59,"./fill_vertex_buffer":60,"./glyph_vertex_buffer":61,"./icon_vertex_buffer":62,"./line_element_buffer":63,"./line_vertex_buffer":64,"./outline_element_buffer":65,"./triangle_element_buffer":66}],58:[function(require,module,exports){
+},{"./circle_vertex_buffer":61,"./collision_box_vertex_buffer":62,"./fill_vertex_buffer":63,"./glyph_vertex_buffer":64,"./icon_vertex_buffer":65,"./line_element_buffer":66,"./line_vertex_buffer":67,"./outline_element_buffer":68,"./triangle_element_buffer":69}],61:[function(require,module,exports){
 'use strict';
 
 var util = require('../../util/util');
@@ -14561,7 +18326,7 @@ CircleVertexBuffer.prototype = util.inherit(Buffer, {
     }
 });
 
-},{"../../util/util":161,"./buffer":56}],59:[function(require,module,exports){
+},{"../../util/util":164,"./buffer":59}],62:[function(require,module,exports){
 'use strict';
 
 var util = require('../../util/util');
@@ -14600,7 +18365,7 @@ CollisionBoxVertexBuffer.prototype = util.inherit(Buffer, {
     }
 });
 
-},{"../../util/util":161,"./buffer":56}],60:[function(require,module,exports){
+},{"../../util/util":164,"./buffer":59}],63:[function(require,module,exports){
 'use strict';
 
 var util = require('../../util/util');
@@ -14627,7 +18392,7 @@ FillVertexBuffer.prototype = util.inherit(Buffer, {
     }
 });
 
-},{"../../util/util":161,"./buffer":56}],61:[function(require,module,exports){
+},{"../../util/util":164,"./buffer":59}],64:[function(require,module,exports){
 'use strict';
 
 var util = require('../../util/util');
@@ -14680,7 +18445,7 @@ GlyphVertexBuffer.prototype = util.inherit(Buffer, {
     }
 });
 
-},{"../../util/util":161,"./buffer":56}],62:[function(require,module,exports){
+},{"../../util/util":164,"./buffer":59}],65:[function(require,module,exports){
 'use strict';
 
 var util = require('../../util/util');
@@ -14731,7 +18496,7 @@ IconVertexBuffer.prototype = util.inherit(Buffer, {
     }
 });
 
-},{"../../util/util":161,"./buffer":56}],63:[function(require,module,exports){
+},{"../../util/util":164,"./buffer":59}],66:[function(require,module,exports){
 'use strict';
 
 var util = require('../../util/util');
@@ -14760,7 +18525,7 @@ LineElementBuffer.prototype = util.inherit(Buffer, {
     }
 });
 
-},{"../../util/util":161,"./buffer":56}],64:[function(require,module,exports){
+},{"../../util/util":164,"./buffer":59}],67:[function(require,module,exports){
 'use strict';
 
 var util = require('../../util/util');
@@ -14808,7 +18573,7 @@ LineVertexBuffer.prototype = util.inherit(Buffer, {
     }
 });
 
-},{"../../util/util":161,"./buffer":56}],65:[function(require,module,exports){
+},{"../../util/util":164,"./buffer":59}],68:[function(require,module,exports){
 'use strict';
 
 var util = require('../../util/util');
@@ -14836,7 +18601,7 @@ OutlineElementBuffer.prototype = util.inherit(Buffer, {
     }
 });
 
-},{"../../util/util":161,"./buffer":56}],66:[function(require,module,exports){
+},{"../../util/util":164,"./buffer":59}],69:[function(require,module,exports){
 'use strict';
 
 var util = require('../../util/util');
@@ -14865,7 +18630,7 @@ TriangleElementBuffer.prototype = util.inherit(Buffer, {
     }
 });
 
-},{"../../util/util":161,"./buffer":56}],67:[function(require,module,exports){
+},{"../../util/util":164,"./buffer":59}],70:[function(require,module,exports){
 'use strict';
 
 var ElementGroups = require('./element_groups');
@@ -14927,7 +18692,7 @@ CircleBucket.prototype.addFeatures = function() {
     }
 };
 
-},{"./element_groups":69}],68:[function(require,module,exports){
+},{"./element_groups":72}],71:[function(require,module,exports){
 'use strict';
 
 module.exports = createBucket;
@@ -14984,7 +18749,7 @@ function createBucket(layer, buffers, z, overscaling, collisionDebug) {
     return bucket;
 }
 
-},{"../style/layout_properties":108,"../style/style_declaration_set":114,"./circle_bucket":67,"./fill_bucket":71,"./line_bucket":72,"./symbol_bucket":73,"feature-filter":163}],69:[function(require,module,exports){
+},{"../style/layout_properties":111,"../style/style_declaration_set":117,"./circle_bucket":70,"./fill_bucket":74,"./line_bucket":75,"./symbol_bucket":76,"feature-filter":166}],72:[function(require,module,exports){
 'use strict';
 
 module.exports = ElementGroups;
@@ -15016,7 +18781,7 @@ function ElementGroup(vertexStartIndex, elementStartIndex, secondElementStartInd
     this.secondElementLength = 0;
 }
 
-},{}],70:[function(require,module,exports){
+},{}],73:[function(require,module,exports){
 'use strict';
 
 var rbush = require('rbush');
@@ -15229,7 +18994,7 @@ function pointContainsPoint(rings, p, radius) {
     return false;
 }
 
-},{"../util/util":161,"point-geometry":184,"rbush":185,"vector-tile":188}],71:[function(require,module,exports){
+},{"../util/util":164,"point-geometry":187,"rbush":188,"vector-tile":191}],74:[function(require,module,exports){
 'use strict';
 
 var ElementGroups = require('./element_groups');
@@ -15304,7 +19069,7 @@ FillBucket.prototype.addFill = function(vertices) {
     }
 };
 
-},{"./element_groups":69}],72:[function(require,module,exports){
+},{"./element_groups":72}],75:[function(require,module,exports){
 'use strict';
 
 var ElementGroups = require('./element_groups');
@@ -15654,7 +19419,7 @@ LineBucket.prototype.addPieSliceVertex = function(currentVertex, flip, distance,
     }
 };
 
-},{"./element_groups":69}],73:[function(require,module,exports){
+},{"./element_groups":72}],76:[function(require,module,exports){
 'use strict';
 
 var ElementGroups = require('./element_groups');
@@ -16141,7 +19906,7 @@ function SymbolInstance(anchor, line, shapedText, shapedIcon, layout, addToBuffe
     }
 }
 
-},{"../symbol/anchor":117,"../symbol/clip_line":120,"../symbol/collision_feature":122,"../symbol/get_anchors":124,"../symbol/mergelines":127,"../symbol/quads":128,"../symbol/resolve_icons":129,"../symbol/resolve_text":130,"../symbol/shaping":131,"../util/token":160,"./element_groups":69,"point-geometry":184}],74:[function(require,module,exports){
+},{"../symbol/anchor":120,"../symbol/clip_line":123,"../symbol/collision_feature":125,"../symbol/get_anchors":127,"../symbol/mergelines":130,"../symbol/quads":131,"../symbol/resolve_icons":132,"../symbol/resolve_text":133,"../symbol/shaping":134,"../util/token":163,"./element_groups":72,"point-geometry":187}],77:[function(require,module,exports){
 'use strict';
 
 module.exports = Coordinate;
@@ -16220,7 +19985,7 @@ Coordinate.prototype = {
     }
 };
 
-},{}],75:[function(require,module,exports){
+},{}],78:[function(require,module,exports){
 'use strict';
 
 module.exports = LngLat;
@@ -16290,7 +20055,7 @@ LngLat.convert = function (input) {
     return input;
 };
 
-},{"../util/util":161}],76:[function(require,module,exports){
+},{"../util/util":164}],79:[function(require,module,exports){
 'use strict';
 
 module.exports = LngLatBounds;
@@ -16437,7 +20202,7 @@ LngLatBounds.convert = function (a) {
     return new LngLatBounds(a);
 };
 
-},{"./lng_lat":75}],77:[function(require,module,exports){
+},{"./lng_lat":78}],80:[function(require,module,exports){
 'use strict';
 
 var LngLat = require('./lng_lat'),
@@ -16806,7 +20571,7 @@ Transform.prototype = {
     }
 };
 
-},{"../util/interpolate":157,"../util/util":161,"./coordinate":74,"./lng_lat":75,"gl-matrix":170,"point-geometry":184}],78:[function(require,module,exports){
+},{"../util/interpolate":160,"../util/util":164,"./coordinate":77,"./lng_lat":78,"gl-matrix":173,"point-geometry":187}],81:[function(require,module,exports){
 'use strict';
 
 // Font data From Hershey Simplex Font
@@ -16939,7 +20704,7 @@ module.exports = function textVertices(text, left, baseline, scale) {
     return strokes;
 };
 
-},{}],79:[function(require,module,exports){
+},{}],82:[function(require,module,exports){
 'use strict';
 
 /**
@@ -16986,7 +20751,7 @@ Object.defineProperty(mapboxgl, 'accessToken', {
     set: function(token) { config.ACCESS_TOKEN = token; }
 });
 
-},{"./geo/lng_lat":75,"./geo/lng_lat_bounds":76,"./source/geojson_source":94,"./source/image_source":96,"./source/video_source":103,"./style/style":111,"./ui/control/attribution":134,"./ui/control/control":135,"./ui/control/navigation":136,"./ui/map":146,"./ui/popup":147,"./util/ajax":149,"./util/browser":150,"./util/config":154,"./util/evented":155,"./util/util":161,"point-geometry":184}],80:[function(require,module,exports){
+},{"./geo/lng_lat":78,"./geo/lng_lat_bounds":79,"./source/geojson_source":97,"./source/image_source":99,"./source/video_source":106,"./style/style":114,"./ui/control/attribution":137,"./ui/control/control":138,"./ui/control/navigation":139,"./ui/map":149,"./ui/popup":150,"./util/ajax":152,"./util/browser":153,"./util/config":157,"./util/evented":158,"./util/util":164,"point-geometry":187}],83:[function(require,module,exports){
 'use strict';
 
 var mat3 = require('gl-matrix').mat3;
@@ -17074,7 +20839,7 @@ function drawBackground(painter, layer, posMatrix) {
     gl.stencilFunc(gl.EQUAL, 0x80, 0x80);
 }
 
-},{"gl-matrix":170}],81:[function(require,module,exports){
+},{"gl-matrix":173}],84:[function(require,module,exports){
 'use strict';
 
 var browser = require('../util/browser.js');
@@ -17127,7 +20892,7 @@ function drawCircles(painter, layer, posMatrix, tile) {
     gl.enable(gl.STENCIL_TEST);
 }
 
-},{"../util/browser.js":150}],82:[function(require,module,exports){
+},{"../util/browser.js":153}],85:[function(require,module,exports){
 'use strict';
 
 module.exports = drawPlacementDebug;
@@ -17163,7 +20928,7 @@ function drawPlacementDebug(painter, layer, posMatrix, tile) {
     gl.disable(gl.STENCIL_TEST);
 }
 
-},{}],83:[function(require,module,exports){
+},{}],86:[function(require,module,exports){
 'use strict';
 
 var textVertices = require('../lib/debugtext');
@@ -17202,7 +20967,7 @@ function drawDebug(painter, tile) {
     gl.blendFunc(gl.ONE_MINUS_DST_ALPHA, gl.ONE);
 }
 
-},{"../lib/debugtext":78,"../util/browser":150}],84:[function(require,module,exports){
+},{"../lib/debugtext":81,"../util/browser":153}],87:[function(require,module,exports){
 'use strict';
 
 var browser = require('../util/browser');
@@ -17372,7 +21137,7 @@ function drawFill(painter, layer, posMatrix, tile) {
     gl.stencilFunc(gl.EQUAL, 0x80, 0x80);
 }
 
-},{"../util/browser":150,"gl-matrix":170}],85:[function(require,module,exports){
+},{"../util/browser":153,"gl-matrix":173}],88:[function(require,module,exports){
 'use strict';
 
 var browser = require('../util/browser');
@@ -17535,7 +21300,7 @@ module.exports = function drawLine(painter, layer, posMatrix, tile) {
 
 };
 
-},{"../util/browser":150,"gl-matrix":170}],86:[function(require,module,exports){
+},{"../util/browser":153,"gl-matrix":173}],89:[function(require,module,exports){
 'use strict';
 
 var util = require('../util/util');
@@ -17646,7 +21411,7 @@ function getOpacities(tile, parentTile, layer, transform) {
     return opacity;
 }
 
-},{"../util/util":161}],87:[function(require,module,exports){
+},{"../util/util":164}],90:[function(require,module,exports){
 'use strict';
 
 var browser = require('../util/browser');
@@ -17825,7 +21590,7 @@ function drawSymbol(painter, layer, posMatrix, tile, elementGroups, prefix, sdf)
     }
 }
 
-},{"../util/browser":150,"./draw_collision_debug":82,"gl-matrix":170}],88:[function(require,module,exports){
+},{"../util/browser":153,"./draw_collision_debug":85,"gl-matrix":173}],91:[function(require,module,exports){
 'use strict';
 
 var browser = require('../util/browser');
@@ -17876,7 +21641,7 @@ function drawVertices(painter, layer, posMatrix, tile) {
     gl.blendFunc(gl.ONE_MINUS_DST_ALPHA, gl.ONE);
 }
 
-},{"../util/browser":150,"gl-matrix":170}],89:[function(require,module,exports){
+},{"../util/browser":153,"gl-matrix":173}],92:[function(require,module,exports){
 'use strict';
 
 module.exports = FrameHistory;
@@ -17944,7 +21709,7 @@ FrameHistory.prototype.record = function(zoom) {
     }
 };
 
-},{}],90:[function(require,module,exports){
+},{}],93:[function(require,module,exports){
 'use strict';
 
 var shaders = require('./shaders');
@@ -18065,7 +21830,7 @@ exports.extend = function(context) {
     return context;
 };
 
-},{"../util/util":161,"./shaders":93}],91:[function(require,module,exports){
+},{"../util/util":164,"./shaders":96}],94:[function(require,module,exports){
 'use strict';
 
 module.exports = LineAtlas;
@@ -18237,7 +22002,7 @@ LineAtlas.prototype.debug = function() {
     ctx.putImageData(data, 0, 0);
 };
 
-},{}],92:[function(require,module,exports){
+},{}],95:[function(require,module,exports){
 'use strict';
 
 var glutil = require('./gl_util');
@@ -18591,7 +22356,7 @@ Painter.prototype.getTexture = function(size) {
     return textures && textures.length > 0 ? textures.pop() : null;
 };
 
-},{"../util/browser":150,"./draw_background":80,"./draw_circle":81,"./draw_debug":83,"./draw_fill":84,"./draw_line":85,"./draw_raster":86,"./draw_symbol":87,"./draw_vertices":88,"./frame_history":89,"./gl_util":90,"gl-matrix":170}],93:[function(require,module,exports){
+},{"../util/browser":153,"./draw_background":83,"./draw_circle":84,"./draw_debug":86,"./draw_fill":87,"./draw_line":88,"./draw_raster":89,"./draw_symbol":90,"./draw_vertices":91,"./frame_history":92,"./gl_util":93,"gl-matrix":173}],96:[function(require,module,exports){
 'use strict';
 
 var glify = undefined;
@@ -18612,7 +22377,7 @@ module.exports = {
     "collisionbox": {"vertex":"precision mediump float;attribute vec2 a_pos,a_extrude,a_data;uniform mat4 u_matrix;uniform float u_scale;varying float a,b;void main(){gl_Position=u_matrix*vec4(a_pos+a_extrude/u_scale,0,1);a=a_data.x;b=a_data.y;}","fragment":"precision mediump float;uniform float u_zoom,u_maxzoom;varying float a,b;void main(){float c=.5;gl_FragColor=vec4(0,1,0,1)*c;if(b>u_zoom)gl_FragColor=vec4(1,0,0,1)*c;if(u_zoom>=a)gl_FragColor=vec4(0,0,0,1)*c*.25;if(b>=u_maxzoom)gl_FragColor=vec4(0,0,1,1)*c*.2;}"}
 };
 
-},{}],94:[function(require,module,exports){
+},{}],97:[function(require,module,exports){
 'use strict';
 
 var util = require('../util/util');
@@ -18801,7 +22566,7 @@ GeoJSONSource.prototype = util.inherit(Evented, /** @lends GeoJSONSource.prototy
     }
 });
 
-},{"../util/evented":155,"../util/util":161,"./source":98,"./tile_pyramid":101,"resolve-url":186}],95:[function(require,module,exports){
+},{"../util/evented":158,"../util/util":164,"./source":101,"./tile_pyramid":104,"resolve-url":189}],98:[function(require,module,exports){
 'use strict';
 
 var Point = require('point-geometry');
@@ -18868,7 +22633,7 @@ FeatureWrapper.prototype.bbox = function() {
 
 FeatureWrapper.prototype.toGeoJSON = VectorTileFeature.prototype.toGeoJSON;
 
-},{"point-geometry":184,"vector-tile":188}],96:[function(require,module,exports){
+},{"point-geometry":187,"vector-tile":191}],99:[function(require,module,exports){
 'use strict';
 
 var util = require('../util/util');
@@ -19011,7 +22776,7 @@ ImageSource.prototype = util.inherit(Evented, {
     }
 });
 
-},{"../geo/lng_lat":75,"../util/ajax":149,"../util/evented":155,"../util/util":161,"./tile":99,"point-geometry":184}],97:[function(require,module,exports){
+},{"../geo/lng_lat":78,"../util/ajax":152,"../util/evented":158,"../util/util":164,"./tile":102,"point-geometry":187}],100:[function(require,module,exports){
 'use strict';
 
 var util = require('../util/util');
@@ -19117,7 +22882,7 @@ RasterTileSource.prototype = util.inherit(Evented, {
     }
 });
 
-},{"../util/ajax":149,"../util/evented":155,"../util/mapbox":158,"../util/util":161,"./source":98}],98:[function(require,module,exports){
+},{"../util/ajax":152,"../util/evented":158,"../util/mapbox":161,"../util/util":164,"./source":101}],101:[function(require,module,exports){
 'use strict';
 
 var util = require('../util/util');
@@ -19267,7 +23032,7 @@ exports.create = function(source) {
     return new sources[source.type](source);
 };
 
-},{"../util/ajax":149,"../util/browser":150,"../util/mapbox":158,"../util/util":161,"./geojson_source":94,"./image_source":96,"./raster_tile_source":97,"./tile_coord":100,"./tile_pyramid":101,"./vector_tile_source":102,"./video_source":103}],99:[function(require,module,exports){
+},{"../util/ajax":152,"../util/browser":153,"../util/mapbox":161,"../util/util":164,"./geojson_source":97,"./image_source":99,"./raster_tile_source":100,"./tile_coord":103,"./tile_pyramid":104,"./vector_tile_source":105,"./video_source":106}],102:[function(require,module,exports){
 'use strict';
 
 var glmatrix = require('gl-matrix');
@@ -19422,7 +23187,7 @@ Tile.prototype = {
     }
 };
 
-},{"../data/buffer/buffer_set":57,"../util/util":161,"gl-matrix":170}],100:[function(require,module,exports){
+},{"../data/buffer/buffer_set":60,"../util/util":164,"gl-matrix":173}],103:[function(require,module,exports){
 'use strict';
 
 module.exports = TileCoord;
@@ -19582,7 +23347,7 @@ TileCoord.cover = function(z, bounds, actualZ) {
     });
 };
 
-},{}],101:[function(require,module,exports){
+},{}],104:[function(require,module,exports){
 'use strict';
 
 var Tile = require('./tile');
@@ -19960,7 +23725,7 @@ TilePyramid.prototype = {
     }
 };
 
-},{"../util/mru_cache":159,"../util/util":161,"./tile":99,"./tile_coord":100,"point-geometry":184}],102:[function(require,module,exports){
+},{"../util/mru_cache":162,"../util/util":164,"./tile":102,"./tile_coord":103,"point-geometry":187}],105:[function(require,module,exports){
 'use strict';
 
 var util = require('../util/util');
@@ -20113,7 +23878,7 @@ VectorTileSource.prototype = util.inherit(Evented, {
     }
 });
 
-},{"../util/evented":155,"../util/util":161,"./source":98}],103:[function(require,module,exports){
+},{"../util/evented":158,"../util/util":164,"./source":101}],106:[function(require,module,exports){
 'use strict';
 
 var util = require('../util/util');
@@ -20285,7 +24050,7 @@ VideoSource.prototype = util.inherit(Evented, /** @lends VideoSource.prototype *
     }
 });
 
-},{"../geo/lng_lat":75,"../util/ajax":149,"../util/evented":155,"../util/util":161,"./tile":99,"point-geometry":184}],104:[function(require,module,exports){
+},{"../geo/lng_lat":78,"../util/ajax":152,"../util/evented":158,"../util/util":164,"./tile":102,"point-geometry":187}],107:[function(require,module,exports){
 'use strict';
 
 var Actor = require('../util/actor');
@@ -20436,7 +24201,7 @@ util.extend(Worker.prototype, {
     }
 });
 
-},{"../util/actor":148,"../util/ajax":149,"../util/util":161,"./geojson_wrapper":95,"./worker_tile":105,"geojson-vt":166,"pbf":182,"vector-tile":188}],105:[function(require,module,exports){
+},{"../util/actor":151,"../util/ajax":152,"../util/util":164,"./geojson_wrapper":98,"./worker_tile":108,"geojson-vt":169,"pbf":185,"vector-tile":191}],108:[function(require,module,exports){
 'use strict';
 
 var FeatureTree = require('../data/feature_tree');
@@ -20706,7 +24471,7 @@ WorkerTile.prototype.redoPlacement = function(angle, pitch, collisionDebug) {
 
 };
 
-},{"../data/buffer/buffer_set":57,"../data/create_bucket":68,"../data/feature_tree":70,"../symbol/collision_tile":123}],106:[function(require,module,exports){
+},{"../data/buffer/buffer_set":60,"../data/create_bucket":71,"../data/feature_tree":73,"../symbol/collision_tile":126}],109:[function(require,module,exports){
 'use strict';
 
 module.exports = AnimationLoop;
@@ -20738,7 +24503,7 @@ AnimationLoop.prototype.cancel = function(n) {
     });
 };
 
-},{}],107:[function(require,module,exports){
+},{}],110:[function(require,module,exports){
 'use strict';
 
 var Evented = require('../util/evented');
@@ -20819,7 +24584,7 @@ ImageSprite.prototype.getSpritePosition = function(name) {
     return new SpritePosition();
 };
 
-},{"../util/ajax":149,"../util/browser":150,"../util/evented":155,"../util/mapbox":158}],108:[function(require,module,exports){
+},{"../util/ajax":152,"../util/browser":153,"../util/evented":158,"../util/mapbox":161}],111:[function(require,module,exports){
 'use strict';
 
 var reference = require('./reference');
@@ -20841,7 +24606,7 @@ reference.layout.forEach(function(className) {
     module.exports[className.replace('layout_', '')] = Properties;
 });
 
-},{"./reference":110}],109:[function(require,module,exports){
+},{"./reference":113}],112:[function(require,module,exports){
 'use strict';
 
 var reference = require('./reference');
@@ -20869,10 +24634,10 @@ reference.paint.forEach(function(className) {
     module.exports[className.replace('paint_', '')] = Calculated;
 });
 
-},{"./reference":110,"csscolorparser":162}],110:[function(require,module,exports){
+},{"./reference":113,"csscolorparser":165}],113:[function(require,module,exports){
 module.exports = require('mapbox-gl-style-spec/reference/latest');
 
-},{"mapbox-gl-style-spec/reference/latest":52}],111:[function(require,module,exports){
+},{"mapbox-gl-style-spec/reference/latest":55}],114:[function(require,module,exports){
 'use strict';
 
 var Evented = require('../util/evented');
@@ -21350,7 +25115,7 @@ Style.prototype = util.inherit(Evented, {
     }
 });
 
-},{"../render/line_atlas":91,"../symbol/glyph_atlas":125,"../symbol/glyph_source":126,"../symbol/sprite_atlas":132,"../util/ajax":149,"../util/browser":150,"../util/dispatcher":152,"../util/evented":155,"../util/mapbox":158,"../util/util":161,"./animation_loop":106,"./image_sprite":107,"./style_batch":112,"./style_layer":115,"mapbox-gl-style-spec/lib/validate/latest":22}],112:[function(require,module,exports){
+},{"../render/line_atlas":94,"../symbol/glyph_atlas":128,"../symbol/glyph_source":129,"../symbol/sprite_atlas":135,"../util/ajax":152,"../util/browser":153,"../util/dispatcher":155,"../util/evented":158,"../util/mapbox":161,"../util/util":164,"./animation_loop":109,"./image_sprite":110,"./style_batch":115,"./style_layer":118,"mapbox-gl-style-spec/lib/validate/latest":25}],115:[function(require,module,exports){
 'use strict';
 
 var Source = require('../source/source');
@@ -21543,7 +25308,7 @@ styleBatch.prototype = {
 
 module.exports = styleBatch;
 
-},{"../source/source":98,"./style_layer":115}],113:[function(require,module,exports){
+},{"../source/source":101,"./style_layer":118}],116:[function(require,module,exports){
 'use strict';
 
 var parseCSSColor = require('csscolorparser').parseCSSColor;
@@ -21644,7 +25409,7 @@ function colorDowngrade(color) {
     return [color[0] / 255, color[1] / 255, color[2] / 255, color[3] / 1];
 }
 
-},{"../util/util":161,"csscolorparser":162,"mapbox-gl-function":180}],114:[function(require,module,exports){
+},{"../util/util":164,"csscolorparser":165,"mapbox-gl-function":183}],117:[function(require,module,exports){
 'use strict';
 
 var util = require('../util/util');
@@ -21728,7 +25493,7 @@ module.exports = function(renderType, layerType, properties) {
     return new lookup[renderType][layerType](properties);
 };
 
-},{"../util/util":161,"./reference":110,"./style_declaration":113}],115:[function(require,module,exports){
+},{"../util/util":164,"./reference":113,"./style_declaration":116}],118:[function(require,module,exports){
 'use strict';
 
 var util = require('../util/util');
@@ -21937,7 +25702,7 @@ function premultiplyLayer(layer, type) {
     }
 }
 
-},{"../util/util":161,"./layout_properties":108,"./paint_properties":109,"./style_declaration_set":114,"./style_transition":116}],116:[function(require,module,exports){
+},{"../util/util":164,"./layout_properties":111,"./paint_properties":112,"./style_declaration_set":117,"./style_transition":119}],119:[function(require,module,exports){
 'use strict';
 
 var util = require('../util/util');
@@ -22012,7 +25777,7 @@ function interpZoomTransitioned(from, to, t) {
     };
 }
 
-},{"../util/interpolate":157,"../util/util":161}],117:[function(require,module,exports){
+},{"../util/interpolate":160,"../util/util":164}],120:[function(require,module,exports){
 'use strict';
 
 var Point = require('point-geometry');
@@ -22035,7 +25800,7 @@ Anchor.prototype.clone = function() {
     return new Anchor(this.x, this.y, this.angle, this.segment);
 };
 
-},{"point-geometry":184}],118:[function(require,module,exports){
+},{"point-geometry":187}],121:[function(require,module,exports){
 'use strict';
 
 module.exports = BinPack;
@@ -22121,7 +25886,7 @@ BinPack.prototype.allocate = function(width, height) {
     return { x: rect.x, y: rect.y, w: width, h: height };
 };
 
-},{}],119:[function(require,module,exports){
+},{}],122:[function(require,module,exports){
 'use strict';
 
 module.exports = checkMaxAngle;
@@ -22201,7 +25966,7 @@ function checkMaxAngle(line, anchor, labelLength, windowSize, maxAngle) {
     return true;
 }
 
-},{}],120:[function(require,module,exports){
+},{}],123:[function(require,module,exports){
 'use strict';
 
 var Point = require('point-geometry');
@@ -22275,7 +26040,7 @@ function clipLine(lines, x1, y1, x2, y2) {
     return clippedLines;
 }
 
-},{"point-geometry":184}],121:[function(require,module,exports){
+},{"point-geometry":187}],124:[function(require,module,exports){
 'use strict';
 
 module.exports = CollisionBox;
@@ -22342,7 +26107,7 @@ function CollisionBox(anchorPoint, x1, y1, x2, y2, maxScale) {
     this[0] = this[1] = this[2] = this[3] = 0;
 }
 
-},{}],122:[function(require,module,exports){
+},{}],125:[function(require,module,exports){
 'use strict';
 
 var CollisionBox = require('./collision_box');
@@ -22461,7 +26226,7 @@ CollisionFeature.prototype._addLineCollisionBoxes = function(line, anchor, label
     return bboxes;
 };
 
-},{"./collision_box":121,"point-geometry":184}],123:[function(require,module,exports){
+},{"./collision_box":124,"point-geometry":187}],126:[function(require,module,exports){
 'use strict';
 
 var rbush = require('rbush');
@@ -22591,7 +26356,7 @@ CollisionTile.prototype.insertCollisionFeature = function(collisionFeature, minP
     }
 };
 
-},{"rbush":185}],124:[function(require,module,exports){
+},{"rbush":188}],127:[function(require,module,exports){
 'use strict';
 
 var interpolate = require('../util/interpolate');
@@ -22688,7 +26453,7 @@ function resample(line, offset, spacing, angleWindowSize, maxAngle, labelLength,
     return anchors;
 }
 
-},{"../symbol/anchor":117,"../util/interpolate":157,"./check_max_angle":119}],125:[function(require,module,exports){
+},{"../symbol/anchor":120,"../util/interpolate":160,"./check_max_angle":122}],128:[function(require,module,exports){
 'use strict';
 
 var BinPack = require('./bin_pack');
@@ -22895,7 +26660,7 @@ GlyphAtlas.prototype.updateTexture = function(gl) {
     }
 };
 
-},{"./bin_pack":118}],126:[function(require,module,exports){
+},{"./bin_pack":121}],129:[function(require,module,exports){
 'use strict';
 
 var normalizeURL = require('../util/mapbox').normalizeGlyphsURL;
@@ -23028,7 +26793,7 @@ function glyphUrl(fontstack, range, url, subdomains) {
         .replace('{range}', range);
 }
 
-},{"../util/ajax":149,"../util/glyphs":156,"../util/mapbox":158,"pbf":182}],127:[function(require,module,exports){
+},{"../util/ajax":152,"../util/glyphs":159,"../util/mapbox":161,"pbf":185}],130:[function(require,module,exports){
 'use strict';
 
 module.exports = function (features, textFeatures, geometries) {
@@ -23119,7 +26884,7 @@ module.exports = function (features, textFeatures, geometries) {
     };
 };
 
-},{}],128:[function(require,module,exports){
+},{}],131:[function(require,module,exports){
 'use strict';
 
 var Point = require('point-geometry');
@@ -23367,7 +27132,7 @@ function getSegmentGlyphs(glyphs, anchor, offset, line, segment, forward) {
     return placementScale;
 }
 
-},{"point-geometry":184}],129:[function(require,module,exports){
+},{"point-geometry":187}],132:[function(require,module,exports){
 'use strict';
 
 var resolveTokens = require('../util/token');
@@ -23390,7 +27155,7 @@ function resolveIcons(features, layoutProperties) {
     return icons;
 }
 
-},{"../util/token":160}],130:[function(require,module,exports){
+},{"../util/token":163}],133:[function(require,module,exports){
 'use strict';
 
 var resolveTokens = require('../util/token');
@@ -23457,7 +27222,7 @@ function sortNumbers(a, b) {
     return a - b;
 }
 
-},{"../util/token":160}],131:[function(require,module,exports){
+},{"../util/token":163}],134:[function(require,module,exports){
 'use strict';
 
 module.exports = {
@@ -23616,7 +27381,7 @@ function PositionedIcon(image, top, bottom, left, right) {
     this.right = right;
 }
 
-},{}],132:[function(require,module,exports){
+},{}],135:[function(require,module,exports){
 'use strict';
 
 var BinPack = require('./bin_pack');
@@ -23921,7 +27686,7 @@ function AtlasImage(rect, width, height, sdf) {
     this.sdf = sdf;
 }
 
-},{"./bin_pack":118}],133:[function(require,module,exports){
+},{"./bin_pack":121}],136:[function(require,module,exports){
 'use strict';
 
 var util = require('../util/util');
@@ -24610,7 +28375,7 @@ util.extend(Camera.prototype, /** @lends Map.prototype */{
     }
 });
 
-},{"../geo/lng_lat":75,"../geo/lng_lat_bounds":76,"../util/browser":150,"../util/interpolate":157,"../util/util":161,"point-geometry":184}],134:[function(require,module,exports){
+},{"../geo/lng_lat":78,"../geo/lng_lat_bounds":79,"../util/browser":153,"../util/interpolate":160,"../util/util":164,"point-geometry":187}],137:[function(require,module,exports){
 'use strict';
 
 var Control = require('./control');
@@ -24671,7 +28436,7 @@ Attribution.prototype = util.inherit(Control, {
     }
 });
 
-},{"../../util/dom":153,"../../util/util":161,"./control":135}],135:[function(require,module,exports){
+},{"../../util/dom":156,"../../util/util":164,"./control":138}],138:[function(require,module,exports){
 'use strict';
 
 module.exports = Control;
@@ -24722,7 +28487,7 @@ Control.prototype = {
     }
 };
 
-},{}],136:[function(require,module,exports){
+},{}],139:[function(require,module,exports){
 'use strict';
 
 var Control = require('./control');
@@ -24852,7 +28617,7 @@ Navigation.prototype = util.inherit(Control, {
     }
 });
 
-},{"../../util/dom":153,"../../util/util":161,"./control":135}],137:[function(require,module,exports){
+},{"../../util/dom":156,"../../util/util":164,"./control":138}],140:[function(require,module,exports){
 'use strict';
 
 var DOM = require('../../util/dom'),
@@ -24951,7 +28716,7 @@ BoxZoom.prototype = {
     }
 };
 
-},{"../../geo/lng_lat_bounds":76,"../../util/dom":153,"../../util/util":161}],138:[function(require,module,exports){
+},{"../../geo/lng_lat_bounds":79,"../../util/dom":156,"../../util/util":164}],141:[function(require,module,exports){
 'use strict';
 
 module.exports = DoubleClickZoom;
@@ -24975,7 +28740,7 @@ DoubleClickZoom.prototype = {
     }
 };
 
-},{}],139:[function(require,module,exports){
+},{}],142:[function(require,module,exports){
 'use strict';
 
 var DOM = require('../../util/dom'),
@@ -25088,7 +28853,7 @@ DragPan.prototype = {
     }
 };
 
-},{"../../util/dom":153,"../../util/util":161}],140:[function(require,module,exports){
+},{"../../util/dom":156,"../../util/util":164}],143:[function(require,module,exports){
 'use strict';
 
 var DOM = require('../../util/dom'),
@@ -25178,7 +28943,7 @@ DragRotate.prototype = {
     }
 };
 
-},{"../../util/dom":153,"../../util/util":161,"point-geometry":184}],141:[function(require,module,exports){
+},{"../../util/dom":156,"../../util/util":164,"point-geometry":187}],144:[function(require,module,exports){
 'use strict';
 
 module.exports = Keyboard;
@@ -25267,7 +29032,7 @@ Keyboard.prototype = {
     }
 };
 
-},{}],142:[function(require,module,exports){
+},{}],145:[function(require,module,exports){
 'use strict';
 
 var DOM = require('../../util/dom'),
@@ -25335,7 +29100,7 @@ Pinch.prototype = {
     }
 };
 
-},{"../../util/dom":153,"../../util/util":161}],143:[function(require,module,exports){
+},{"../../util/dom":156,"../../util/util":164}],146:[function(require,module,exports){
 'use strict';
 
 var DOM = require('../../util/dom'),
@@ -25451,7 +29216,7 @@ ScrollZoom.prototype = {
     }
 };
 
-},{"../../util/browser":150,"../../util/dom":153,"../../util/util":161}],144:[function(require,module,exports){
+},{"../../util/browser":153,"../../util/dom":156,"../../util/util":164}],147:[function(require,module,exports){
 'use strict';
 
 /*
@@ -25523,7 +29288,7 @@ Hash.prototype = {
     }
 };
 
-},{"../util/util":161}],145:[function(require,module,exports){
+},{"../util/util":164}],148:[function(require,module,exports){
 'use strict';
 
 var handlers = {
@@ -25683,7 +29448,7 @@ Interaction.prototype = {
     }
 };
 
-},{"../util/dom":153,"../util/util":161,"./handler/box_zoom":137,"./handler/dblclick_zoom":138,"./handler/drag_pan":139,"./handler/drag_rotate":140,"./handler/keyboard":141,"./handler/pinch":142,"./handler/scroll_zoom":143}],146:[function(require,module,exports){
+},{"../util/dom":156,"../util/util":164,"./handler/box_zoom":140,"./handler/dblclick_zoom":141,"./handler/drag_pan":142,"./handler/drag_rotate":143,"./handler/keyboard":144,"./handler/pinch":145,"./handler/scroll_zoom":146}],149:[function(require,module,exports){
 'use strict';
 
 var Canvas = require('../util/canvas');
@@ -26585,7 +30350,7 @@ util.extendAll(Map.prototype, /** @lends Map.prototype */{
     set vertices(value) { this._vertices = value; this.update(); }
 });
 
-},{"../geo/lng_lat":75,"../geo/lng_lat_bounds":76,"../geo/transform":77,"../render/painter":92,"../style/animation_loop":106,"../style/style":111,"../util/browser":150,"../util/canvas":151,"../util/dom":153,"../util/evented":155,"../util/util":161,"./camera":133,"./control/attribution":134,"./hash":144,"./interaction":145,"point-geometry":184}],147:[function(require,module,exports){
+},{"../geo/lng_lat":78,"../geo/lng_lat_bounds":79,"../geo/transform":80,"../render/painter":95,"../style/animation_loop":109,"../style/style":114,"../util/browser":153,"../util/canvas":154,"../util/dom":156,"../util/evented":158,"../util/util":164,"./camera":136,"./control/attribution":137,"./hash":147,"./interaction":148,"point-geometry":187}],150:[function(require,module,exports){
 'use strict';
 
 module.exports = Popup;
@@ -26801,7 +30566,7 @@ Popup.prototype = util.inherit(Evented, /** @lends Popup.prototype */{
     }
 });
 
-},{"../geo/lng_lat":75,"../util/dom":153,"../util/evented":155,"../util/util":161}],148:[function(require,module,exports){
+},{"../geo/lng_lat":78,"../util/dom":156,"../util/evented":158,"../util/util":164}],151:[function(require,module,exports){
 'use strict';
 
 module.exports = Actor;
@@ -26870,7 +30635,7 @@ Actor.prototype.postMessage = function(message, transferList) {
     }
 };
 
-},{}],149:[function(require,module,exports){
+},{}],152:[function(require,module,exports){
 'use strict';
 
 exports.getJSON = function(url, callback) {
@@ -26960,7 +30725,7 @@ exports.getVideo = function(urls, callback) {
     return video;
 };
 
-},{}],150:[function(require,module,exports){
+},{}],153:[function(require,module,exports){
 'use strict';
 
 var Canvas = require('./canvas');
@@ -27079,7 +30844,7 @@ Object.defineProperty(exports, 'devicePixelRatio', {
     get: function() { return window.devicePixelRatio; }
 });
 
-},{"./canvas":151}],151:[function(require,module,exports){
+},{"./canvas":154}],154:[function(require,module,exports){
 'use strict';
 
 var util = require('../util');
@@ -27145,7 +30910,7 @@ Canvas.prototype.getElement = function() {
     return this.canvas;
 };
 
-},{"../util":161}],152:[function(require,module,exports){
+},{"../util":164}],155:[function(require,module,exports){
 'use strict';
 
 var Actor = require('../actor');
@@ -27189,7 +30954,7 @@ Dispatcher.prototype = {
     }
 };
 
-},{"../../source/worker":104,"../actor":148,"webworkify":192}],153:[function(require,module,exports){
+},{"../../source/worker":107,"../actor":151,"webworkify":195}],156:[function(require,module,exports){
 'use strict';
 
 var Point = require('point-geometry');
@@ -27251,7 +31016,7 @@ exports.mousePos = function (el, e) {
         e.clientY - rect.top - el.clientTop);
 };
 
-},{"point-geometry":184}],154:[function(require,module,exports){
+},{"point-geometry":187}],157:[function(require,module,exports){
 'use strict';
 
 module.exports = {
@@ -27259,7 +31024,7 @@ module.exports = {
     REQUIRE_ACCESS_TOKEN: true
 };
 
-},{}],155:[function(require,module,exports){
+},{}],158:[function(require,module,exports){
 'use strict';
 
 var util = require('./util');
@@ -27364,7 +31129,7 @@ var Evented = {
 
 module.exports = Evented;
 
-},{"./util":161}],156:[function(require,module,exports){
+},{"./util":164}],159:[function(require,module,exports){
 'use strict';
 
 module.exports = Glyphs;
@@ -27399,7 +31164,7 @@ function readGlyph(tag, glyph, pbf) {
     else if (tag === 7) glyph.advance = pbf.readVarint();
 }
 
-},{}],157:[function(require,module,exports){
+},{}],160:[function(require,module,exports){
 'use strict';
 
 module.exports = interpolate;
@@ -27440,7 +31205,7 @@ interpolate.array = function(from, to, t) {
     });
 };
 
-},{}],158:[function(require,module,exports){
+},{}],161:[function(require,module,exports){
 'use strict';
 
 var config = require('./config');
@@ -27514,7 +31279,7 @@ module.exports.normalizeTileURL = function(url, sourceUrl) {
     return url.replace(/\.((?:png|jpg)\d*)(?=$|\?)/, browser.devicePixelRatio >= 2 ? '@2x.$1' : '.$1');
 };
 
-},{"./browser":150,"./config":154}],159:[function(require,module,exports){
+},{"./browser":153,"./config":157}],162:[function(require,module,exports){
 'use strict';
 
 /**
@@ -27612,7 +31377,7 @@ MRUCache.prototype.get = function(key) {
     return data;
 };
 
-},{}],160:[function(require,module,exports){
+},{}],163:[function(require,module,exports){
 'use strict';
 
 module.exports = resolveTokens;
@@ -27631,7 +31396,7 @@ function resolveTokens(properties, text) {
     });
 }
 
-},{}],161:[function(require,module,exports){
+},{}],164:[function(require,module,exports){
 'use strict';
 
 var UnitBezier = require('unitbezier');
@@ -28029,9 +31794,9 @@ exports.getCoordinatesCenter = function(coords) {
         .zoomTo(Math.floor(-Math.log(dMax) / Math.LN2));
 };
 
-},{"../geo/coordinate":74,"unitbezier":187}],162:[function(require,module,exports){
-arguments[4][26][0].apply(exports,arguments)
-},{"dup":26}],163:[function(require,module,exports){
+},{"../geo/coordinate":77,"unitbezier":190}],165:[function(require,module,exports){
+arguments[4][29][0].apply(exports,arguments)
+},{"dup":29}],166:[function(require,module,exports){
 'use strict';
 
 var VectorTileFeatureTypes = ['Unknown', 'Point', 'LineString', 'Polygon'];
@@ -28111,7 +31876,7 @@ module.exports = function (filter) {
     return new Function('f', filterStr);
 };
 
-},{}],164:[function(require,module,exports){
+},{}],167:[function(require,module,exports){
 'use strict';
 
 module.exports = clip;
@@ -28264,7 +32029,7 @@ function newSlice(slices, slice, area, dist) {
     return [];
 }
 
-},{}],165:[function(require,module,exports){
+},{}],168:[function(require,module,exports){
 'use strict';
 
 module.exports = convert;
@@ -28410,7 +32175,7 @@ function calcRingBBox(min, max, points) {
     }
 }
 
-},{"./simplify":167}],166:[function(require,module,exports){
+},{"./simplify":170}],169:[function(require,module,exports){
 'use strict';
 
 module.exports = geojsonvt;
@@ -28677,7 +32442,7 @@ function isClippedSquare(tile, extent, buffer) {
     return true;
 }
 
-},{"./clip":164,"./convert":165,"./tile":168,"./wrap":169}],167:[function(require,module,exports){
+},{"./clip":167,"./convert":168,"./tile":171,"./wrap":172}],170:[function(require,module,exports){
 'use strict';
 
 module.exports = simplify;
@@ -28753,7 +32518,7 @@ function getSqSegDist(p, a, b) {
     return dx * dx + dy * dy;
 }
 
-},{}],168:[function(require,module,exports){
+},{}],171:[function(require,module,exports){
 'use strict';
 
 module.exports = createTile;
@@ -28840,7 +32605,7 @@ function addFeature(tile, feature, tolerance, noSimplify) {
     }
 }
 
-},{}],169:[function(require,module,exports){
+},{}],172:[function(require,module,exports){
 'use strict';
 
 var clip = require('./clip');
@@ -28903,7 +32668,7 @@ function shiftCoords(points, offset) {
     return newPoints;
 }
 
-},{"./clip":164}],170:[function(require,module,exports){
+},{"./clip":167}],173:[function(require,module,exports){
 /**
  * @fileoverview gl-matrix - High performance matrix and vector operations
  * @author Brandon Jones
@@ -28941,7 +32706,7 @@ exports.quat = require("./gl-matrix/quat.js");
 exports.vec2 = require("./gl-matrix/vec2.js");
 exports.vec3 = require("./gl-matrix/vec3.js");
 exports.vec4 = require("./gl-matrix/vec4.js");
-},{"./gl-matrix/common.js":171,"./gl-matrix/mat2.js":172,"./gl-matrix/mat2d.js":173,"./gl-matrix/mat3.js":174,"./gl-matrix/mat4.js":175,"./gl-matrix/quat.js":176,"./gl-matrix/vec2.js":177,"./gl-matrix/vec3.js":178,"./gl-matrix/vec4.js":179}],171:[function(require,module,exports){
+},{"./gl-matrix/common.js":174,"./gl-matrix/mat2.js":175,"./gl-matrix/mat2d.js":176,"./gl-matrix/mat3.js":177,"./gl-matrix/mat4.js":178,"./gl-matrix/quat.js":179,"./gl-matrix/vec2.js":180,"./gl-matrix/vec3.js":181,"./gl-matrix/vec4.js":182}],174:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -28995,7 +32760,7 @@ glMatrix.toRadian = function(a){
 
 module.exports = glMatrix;
 
-},{}],172:[function(require,module,exports){
+},{}],175:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -29299,7 +33064,7 @@ mat2.LDU = function (L, D, U, a) {
 
 module.exports = mat2;
 
-},{"./common.js":171}],173:[function(require,module,exports){
+},{"./common.js":174}],176:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -29618,7 +33383,7 @@ mat2d.frob = function (a) {
 
 module.exports = mat2d;
 
-},{"./common.js":171}],174:[function(require,module,exports){
+},{"./common.js":174}],177:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -30185,7 +33950,7 @@ mat3.frob = function (a) {
 
 module.exports = mat3;
 
-},{"./common.js":171}],175:[function(require,module,exports){
+},{"./common.js":174}],178:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -31470,7 +35235,7 @@ mat4.frob = function (a) {
 
 module.exports = mat4;
 
-},{"./common.js":171}],176:[function(require,module,exports){
+},{"./common.js":174}],179:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -32025,7 +35790,7 @@ quat.str = function (a) {
 
 module.exports = quat;
 
-},{"./common.js":171,"./mat3.js":174,"./vec3.js":178,"./vec4.js":179}],177:[function(require,module,exports){
+},{"./common.js":174,"./mat3.js":177,"./vec3.js":181,"./vec4.js":182}],180:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -32550,7 +36315,7 @@ vec2.str = function (a) {
 
 module.exports = vec2;
 
-},{"./common.js":171}],178:[function(require,module,exports){
+},{"./common.js":174}],181:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -33261,7 +37026,7 @@ vec3.str = function (a) {
 
 module.exports = vec3;
 
-},{"./common.js":171}],179:[function(require,module,exports){
+},{"./common.js":174}],182:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -33800,7 +37565,7 @@ vec4.str = function (a) {
 
 module.exports = vec4;
 
-},{"./common.js":171}],180:[function(require,module,exports){
+},{"./common.js":174}],183:[function(require,module,exports){
 'use strict';
 
 function constant(value) {
@@ -33884,7 +37649,7 @@ exports['piecewise-constant'] = function(f) {
     }
 };
 
-},{}],181:[function(require,module,exports){
+},{}],184:[function(require,module,exports){
 'use strict';
 
 // lightweight Buffer shim for pbf browser build
@@ -34045,7 +37810,7 @@ function encodeString(str) {
     return bytes;
 }
 
-},{"ieee754":183}],182:[function(require,module,exports){
+},{"ieee754":186}],185:[function(require,module,exports){
 (function (global){
 'use strict';
 
@@ -34475,7 +38240,7 @@ function writePackedFixed64(arr, pbf)  { for (var i = 0; i < arr.length; i++) pb
 function writePackedSFixed64(arr, pbf) { for (var i = 0; i < arr.length; i++) pbf.writeSFixed64(arr[i]); }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./buffer":181}],183:[function(require,module,exports){
+},{"./buffer":184}],186:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = nBytes * 8 - mLen - 1
@@ -34561,7 +38326,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],184:[function(require,module,exports){
+},{}],187:[function(require,module,exports){
 'use strict';
 
 module.exports = Point;
@@ -34694,7 +38459,7 @@ Point.convert = function (a) {
     return a;
 };
 
-},{}],185:[function(require,module,exports){
+},{}],188:[function(require,module,exports){
 /*
  (c) 2015, Vladimir Agafonkin
  RBush, a JavaScript library for high-performance 2D spatial indexing of points and rectangles.
@@ -35313,7 +39078,7 @@ else window.rbush = rbush;
 
 })();
 
-},{}],186:[function(require,module,exports){
+},{}],189:[function(require,module,exports){
 // Copyright 2014 Simon Lydell
 // X11 (“MIT”) Licensed. (See LICENSE.)
 
@@ -35362,7 +39127,7 @@ void (function(root, factory) {
 
 }));
 
-},{}],187:[function(require,module,exports){
+},{}],190:[function(require,module,exports){
 /*
  * Copyright (C) 2008 Apple Inc. All Rights Reserved.
  *
@@ -35469,12 +39234,12 @@ UnitBezier.prototype.solve = function(x, epsilon) {
     return this.sampleCurveY(this.solveCurveX(x, epsilon));
 };
 
-},{}],188:[function(require,module,exports){
+},{}],191:[function(require,module,exports){
 module.exports.VectorTile = require('./lib/vectortile.js');
 module.exports.VectorTileFeature = require('./lib/vectortilefeature.js');
 module.exports.VectorTileLayer = require('./lib/vectortilelayer.js');
 
-},{"./lib/vectortile.js":189,"./lib/vectortilefeature.js":190,"./lib/vectortilelayer.js":191}],189:[function(require,module,exports){
+},{"./lib/vectortile.js":192,"./lib/vectortilefeature.js":193,"./lib/vectortilelayer.js":194}],192:[function(require,module,exports){
 'use strict';
 
 var VectorTileLayer = require('./vectortilelayer');
@@ -35493,7 +39258,7 @@ function readTile(tag, layers, pbf) {
 }
 
 
-},{"./vectortilelayer":191}],190:[function(require,module,exports){
+},{"./vectortilelayer":194}],193:[function(require,module,exports){
 'use strict';
 
 var Point = require('point-geometry');
@@ -35661,7 +39426,7 @@ VectorTileFeature.prototype.toGeoJSON = function(x, y, z) {
     };
 };
 
-},{"point-geometry":184}],191:[function(require,module,exports){
+},{"point-geometry":187}],194:[function(require,module,exports){
 'use strict';
 
 var VectorTileFeature = require('./vectortilefeature.js');
@@ -35724,7 +39489,7 @@ VectorTileLayer.prototype.feature = function(i) {
     return new VectorTileFeature(this._pbf, end, this.extent, this._keys, this._values);
 };
 
-},{"./vectortilefeature.js":190}],192:[function(require,module,exports){
+},{"./vectortilefeature.js":193}],195:[function(require,module,exports){
 var bundleFn = arguments[3];
 var sources = arguments[4];
 var cache = arguments[5];
@@ -35781,7 +39546,7 @@ module.exports = function (fn) {
     ));
 };
 
-},{}],193:[function(require,module,exports){
+},{}],196:[function(require,module,exports){
 var xtend = require('xtend');
 
 var date = [
@@ -35930,7 +39695,7 @@ if (require.main === module) {
   console.log(JSON.stringify(getAllCombinations()));
 }
 
-},{"xtend":194}],194:[function(require,module,exports){
+},{"xtend":197}],197:[function(require,module,exports){
 module.exports = extend
 
 function extend() {
@@ -35949,7 +39714,10 @@ function extend() {
     return target
 }
 
-},{}],195:[function(require,module,exports){
+},{}],198:[function(require,module,exports){
+module.exports = require('./lib/ReactWithAddons');
+
+},{"./lib/ReactWithAddons":298}],199:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -35976,7 +39744,7 @@ var AutoFocusMixin = {
 
 module.exports = AutoFocusMixin;
 
-},{"./focusNode":313}],196:[function(require,module,exports){
+},{"./focusNode":332}],200:[function(require,module,exports){
 /**
  * Copyright 2013-2015 Facebook, Inc.
  * All rights reserved.
@@ -36471,7 +40239,119 @@ var BeforeInputEventPlugin = {
 
 module.exports = BeforeInputEventPlugin;
 
-},{"./EventConstants":208,"./EventPropagators":213,"./ExecutionEnvironment":214,"./FallbackCompositionState":215,"./SyntheticCompositionEvent":287,"./SyntheticInputEvent":291,"./keyOf":335}],197:[function(require,module,exports){
+},{"./EventConstants":213,"./EventPropagators":218,"./ExecutionEnvironment":219,"./FallbackCompositionState":220,"./SyntheticCompositionEvent":304,"./SyntheticInputEvent":308,"./keyOf":355}],201:[function(require,module,exports){
+(function (process){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule CSSCore
+ * @typechecks
+ */
+
+var invariant = require("./invariant");
+
+/**
+ * The CSSCore module specifies the API (and implements most of the methods)
+ * that should be used when dealing with the display of elements (via their
+ * CSS classes and visibility on screen. It is an API focused on mutating the
+ * display and not reading it as no logical state should be encoded in the
+ * display of elements.
+ */
+
+var CSSCore = {
+
+  /**
+   * Adds the class passed in to the element if it doesn't already have it.
+   *
+   * @param {DOMElement} element the element to set the class on
+   * @param {string} className the CSS className
+   * @return {DOMElement} the element passed in
+   */
+  addClass: function(element, className) {
+    ("production" !== process.env.NODE_ENV ? invariant(
+      !/\s/.test(className),
+      'CSSCore.addClass takes only a single class name. "%s" contains ' +
+      'multiple classes.', className
+    ) : invariant(!/\s/.test(className)));
+
+    if (className) {
+      if (element.classList) {
+        element.classList.add(className);
+      } else if (!CSSCore.hasClass(element, className)) {
+        element.className = element.className + ' ' + className;
+      }
+    }
+    return element;
+  },
+
+  /**
+   * Removes the class passed in from the element
+   *
+   * @param {DOMElement} element the element to set the class on
+   * @param {string} className the CSS className
+   * @return {DOMElement} the element passed in
+   */
+  removeClass: function(element, className) {
+    ("production" !== process.env.NODE_ENV ? invariant(
+      !/\s/.test(className),
+      'CSSCore.removeClass takes only a single class name. "%s" contains ' +
+      'multiple classes.', className
+    ) : invariant(!/\s/.test(className)));
+
+    if (className) {
+      if (element.classList) {
+        element.classList.remove(className);
+      } else if (CSSCore.hasClass(element, className)) {
+        element.className = element.className
+          .replace(new RegExp('(^|\\s)' + className + '(?:\\s|$)', 'g'), '$1')
+          .replace(/\s+/g, ' ') // multiple spaces to one
+          .replace(/^\s*|\s*$/g, ''); // trim the ends
+      }
+    }
+    return element;
+  },
+
+  /**
+   * Helper to add or remove a class from an element based on a condition.
+   *
+   * @param {DOMElement} element the element to set the class on
+   * @param {string} className the CSS className
+   * @param {*} bool condition to whether to add or remove the class
+   * @return {DOMElement} the element passed in
+   */
+  conditionClass: function(element, className, bool) {
+    return (bool ? CSSCore.addClass : CSSCore.removeClass)(element, className);
+  },
+
+  /**
+   * Tests whether the element has the class specified.
+   *
+   * @param {DOMNode|DOMWindow} element the element to set the class on
+   * @param {string} className the CSS className
+   * @return {boolean} true if the element has the class, false if not
+   */
+  hasClass: function(element, className) {
+    ("production" !== process.env.NODE_ENV ? invariant(
+      !/\s/.test(className),
+      'CSS.hasClass takes only a single class name.'
+    ) : invariant(!/\s/.test(className)));
+    if (element.classList) {
+      return !!className && element.classList.contains(className);
+    }
+    return (' ' + element.className + ' ').indexOf(' ' + className + ' ') > -1;
+  }
+
+};
+
+module.exports = CSSCore;
+
+}).call(this,require('_process'))
+},{"./invariant":348,"_process":9}],202:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -36596,7 +40476,7 @@ var CSSProperty = {
 
 module.exports = CSSProperty;
 
-},{}],198:[function(require,module,exports){
+},{}],203:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -36778,7 +40658,7 @@ var CSSPropertyOperations = {
 module.exports = CSSPropertyOperations;
 
 }).call(this,require('_process'))
-},{"./CSSProperty":197,"./ExecutionEnvironment":214,"./camelizeStyleName":302,"./dangerousStyleValue":307,"./hyphenateStyleName":327,"./memoizeStringOnly":337,"./warning":348,"_process":6}],199:[function(require,module,exports){
+},{"./CSSProperty":202,"./ExecutionEnvironment":219,"./camelizeStyleName":319,"./dangerousStyleValue":326,"./hyphenateStyleName":346,"./memoizeStringOnly":357,"./warning":369,"_process":9}],204:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -36878,7 +40758,7 @@ PooledClass.addPoolingTo(CallbackQueue);
 module.exports = CallbackQueue;
 
 }).call(this,require('_process'))
-},{"./Object.assign":220,"./PooledClass":221,"./invariant":329,"_process":6}],200:[function(require,module,exports){
+},{"./Object.assign":226,"./PooledClass":227,"./invariant":348,"_process":9}],205:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -37260,7 +41140,7 @@ var ChangeEventPlugin = {
 
 module.exports = ChangeEventPlugin;
 
-},{"./EventConstants":208,"./EventPluginHub":210,"./EventPropagators":213,"./ExecutionEnvironment":214,"./ReactUpdates":281,"./SyntheticEvent":289,"./isEventSupported":330,"./isTextInputElement":332,"./keyOf":335}],201:[function(require,module,exports){
+},{"./EventConstants":213,"./EventPluginHub":215,"./EventPropagators":218,"./ExecutionEnvironment":219,"./ReactUpdates":297,"./SyntheticEvent":306,"./isEventSupported":349,"./isTextInputElement":351,"./keyOf":355}],206:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -37285,7 +41165,7 @@ var ClientReactRootIndex = {
 
 module.exports = ClientReactRootIndex;
 
-},{}],202:[function(require,module,exports){
+},{}],207:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -37423,7 +41303,7 @@ var DOMChildrenOperations = {
 module.exports = DOMChildrenOperations;
 
 }).call(this,require('_process'))
-},{"./Danger":205,"./ReactMultiChildUpdateTypes":266,"./invariant":329,"./setTextContent":343,"_process":6}],203:[function(require,module,exports){
+},{"./Danger":210,"./ReactMultiChildUpdateTypes":276,"./invariant":348,"./setTextContent":363,"_process":9}],208:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -37722,7 +41602,7 @@ var DOMProperty = {
 module.exports = DOMProperty;
 
 }).call(this,require('_process'))
-},{"./invariant":329,"_process":6}],204:[function(require,module,exports){
+},{"./invariant":348,"_process":9}],209:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -37914,7 +41794,7 @@ var DOMPropertyOperations = {
 module.exports = DOMPropertyOperations;
 
 }).call(this,require('_process'))
-},{"./DOMProperty":203,"./quoteAttributeValueForBrowser":341,"./warning":348,"_process":6}],205:[function(require,module,exports){
+},{"./DOMProperty":208,"./quoteAttributeValueForBrowser":361,"./warning":369,"_process":9}],210:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -38101,7 +41981,7 @@ var Danger = {
 module.exports = Danger;
 
 }).call(this,require('_process'))
-},{"./ExecutionEnvironment":214,"./createNodesFromMarkup":306,"./emptyFunction":308,"./getMarkupWrap":321,"./invariant":329,"_process":6}],206:[function(require,module,exports){
+},{"./ExecutionEnvironment":219,"./createNodesFromMarkup":324,"./emptyFunction":327,"./getMarkupWrap":340,"./invariant":348,"_process":9}],211:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -38140,7 +42020,7 @@ var DefaultEventPluginOrder = [
 
 module.exports = DefaultEventPluginOrder;
 
-},{"./keyOf":335}],207:[function(require,module,exports){
+},{"./keyOf":355}],212:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -38280,7 +42160,7 @@ var EnterLeaveEventPlugin = {
 
 module.exports = EnterLeaveEventPlugin;
 
-},{"./EventConstants":208,"./EventPropagators":213,"./ReactMount":264,"./SyntheticMouseEvent":293,"./keyOf":335}],208:[function(require,module,exports){
+},{"./EventConstants":213,"./EventPropagators":218,"./ReactMount":274,"./SyntheticMouseEvent":310,"./keyOf":355}],213:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -38352,7 +42232,7 @@ var EventConstants = {
 
 module.exports = EventConstants;
 
-},{"./keyMirror":334}],209:[function(require,module,exports){
+},{"./keyMirror":354}],214:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -38442,7 +42322,7 @@ var EventListener = {
 module.exports = EventListener;
 
 }).call(this,require('_process'))
-},{"./emptyFunction":308,"_process":6}],210:[function(require,module,exports){
+},{"./emptyFunction":327,"_process":9}],215:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -38720,7 +42600,7 @@ var EventPluginHub = {
 module.exports = EventPluginHub;
 
 }).call(this,require('_process'))
-},{"./EventPluginRegistry":211,"./EventPluginUtils":212,"./accumulateInto":299,"./forEachAccumulated":314,"./invariant":329,"_process":6}],211:[function(require,module,exports){
+},{"./EventPluginRegistry":216,"./EventPluginUtils":217,"./accumulateInto":316,"./forEachAccumulated":333,"./invariant":348,"_process":9}],216:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -39000,7 +42880,7 @@ var EventPluginRegistry = {
 module.exports = EventPluginRegistry;
 
 }).call(this,require('_process'))
-},{"./invariant":329,"_process":6}],212:[function(require,module,exports){
+},{"./invariant":348,"_process":9}],217:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -39221,7 +43101,7 @@ var EventPluginUtils = {
 module.exports = EventPluginUtils;
 
 }).call(this,require('_process'))
-},{"./EventConstants":208,"./invariant":329,"_process":6}],213:[function(require,module,exports){
+},{"./EventConstants":213,"./invariant":348,"_process":9}],218:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -39363,7 +43243,7 @@ var EventPropagators = {
 module.exports = EventPropagators;
 
 }).call(this,require('_process'))
-},{"./EventConstants":208,"./EventPluginHub":210,"./accumulateInto":299,"./forEachAccumulated":314,"_process":6}],214:[function(require,module,exports){
+},{"./EventConstants":213,"./EventPluginHub":215,"./accumulateInto":316,"./forEachAccumulated":333,"_process":9}],219:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -39407,7 +43287,7 @@ var ExecutionEnvironment = {
 
 module.exports = ExecutionEnvironment;
 
-},{}],215:[function(require,module,exports){
+},{}],220:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -39498,7 +43378,7 @@ PooledClass.addPoolingTo(FallbackCompositionState);
 
 module.exports = FallbackCompositionState;
 
-},{"./Object.assign":220,"./PooledClass":221,"./getTextContentAccessor":324}],216:[function(require,module,exports){
+},{"./Object.assign":226,"./PooledClass":227,"./getTextContentAccessor":343}],221:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -39709,7 +43589,48 @@ var HTMLDOMPropertyConfig = {
 
 module.exports = HTMLDOMPropertyConfig;
 
-},{"./DOMProperty":203,"./ExecutionEnvironment":214}],217:[function(require,module,exports){
+},{"./DOMProperty":208,"./ExecutionEnvironment":219}],222:[function(require,module,exports){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule LinkedStateMixin
+ * @typechecks static-only
+ */
+
+'use strict';
+
+var ReactLink = require("./ReactLink");
+var ReactStateSetters = require("./ReactStateSetters");
+
+/**
+ * A simple mixin around ReactLink.forState().
+ */
+var LinkedStateMixin = {
+  /**
+   * Create a ReactLink that's linked to part of this component's state. The
+   * ReactLink will have the current value of this.state[key] and will call
+   * setState() when a change is requested.
+   *
+   * @param {string} key state key to update. Note: you may want to use keyOf()
+   * if you're using Google Closure Compiler advanced mode.
+   * @return {ReactLink} ReactLink instance linking to the state.
+   */
+  linkState: function(key) {
+    return new ReactLink(
+      this.state[key],
+      ReactStateSetters.createStateKeySetter(this, key)
+    );
+  }
+};
+
+module.exports = LinkedStateMixin;
+
+},{"./ReactLink":272,"./ReactStateSetters":291}],223:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -39865,7 +43786,7 @@ var LinkedValueUtils = {
 module.exports = LinkedValueUtils;
 
 }).call(this,require('_process'))
-},{"./ReactPropTypes":272,"./invariant":329,"_process":6}],218:[function(require,module,exports){
+},{"./ReactPropTypes":283,"./invariant":348,"_process":9}],224:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -39922,7 +43843,7 @@ var LocalEventTrapMixin = {
 module.exports = LocalEventTrapMixin;
 
 }).call(this,require('_process'))
-},{"./ReactBrowserEventEmitter":224,"./accumulateInto":299,"./forEachAccumulated":314,"./invariant":329,"_process":6}],219:[function(require,module,exports){
+},{"./ReactBrowserEventEmitter":230,"./accumulateInto":316,"./forEachAccumulated":333,"./invariant":348,"_process":9}],225:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -39980,7 +43901,7 @@ var MobileSafariClickEventPlugin = {
 
 module.exports = MobileSafariClickEventPlugin;
 
-},{"./EventConstants":208,"./emptyFunction":308}],220:[function(require,module,exports){
+},{"./EventConstants":213,"./emptyFunction":327}],226:[function(require,module,exports){
 /**
  * Copyright 2014-2015, Facebook, Inc.
  * All rights reserved.
@@ -40029,7 +43950,7 @@ function assign(target, sources) {
 
 module.exports = assign;
 
-},{}],221:[function(require,module,exports){
+},{}],227:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -40145,7 +44066,7 @@ var PooledClass = {
 module.exports = PooledClass;
 
 }).call(this,require('_process'))
-},{"./invariant":329,"_process":6}],222:[function(require,module,exports){
+},{"./invariant":348,"_process":9}],228:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -40297,7 +44218,7 @@ React.version = '0.13.3';
 module.exports = React;
 
 }).call(this,require('_process'))
-},{"./EventPluginUtils":212,"./ExecutionEnvironment":214,"./Object.assign":220,"./ReactChildren":226,"./ReactClass":227,"./ReactComponent":228,"./ReactContext":232,"./ReactCurrentOwner":233,"./ReactDOM":234,"./ReactDOMTextComponent":245,"./ReactDefaultInjection":248,"./ReactElement":251,"./ReactElementValidator":252,"./ReactInstanceHandles":260,"./ReactMount":264,"./ReactPerf":269,"./ReactPropTypes":272,"./ReactReconciler":275,"./ReactServerRendering":278,"./findDOMNode":311,"./onlyChild":338,"_process":6}],223:[function(require,module,exports){
+},{"./EventPluginUtils":217,"./ExecutionEnvironment":219,"./Object.assign":226,"./ReactChildren":234,"./ReactClass":235,"./ReactComponent":236,"./ReactContext":241,"./ReactCurrentOwner":242,"./ReactDOM":243,"./ReactDOMTextComponent":254,"./ReactDefaultInjection":257,"./ReactElement":260,"./ReactElementValidator":261,"./ReactInstanceHandles":269,"./ReactMount":274,"./ReactPerf":279,"./ReactPropTypes":283,"./ReactReconciler":286,"./ReactServerRendering":289,"./findDOMNode":330,"./onlyChild":358,"_process":9}],229:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -40328,7 +44249,7 @@ var ReactBrowserComponentMixin = {
 
 module.exports = ReactBrowserComponentMixin;
 
-},{"./findDOMNode":311}],224:[function(require,module,exports){
+},{"./findDOMNode":330}],230:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -40681,7 +44602,225 @@ var ReactBrowserEventEmitter = assign({}, ReactEventEmitterMixin, {
 
 module.exports = ReactBrowserEventEmitter;
 
-},{"./EventConstants":208,"./EventPluginHub":210,"./EventPluginRegistry":211,"./Object.assign":220,"./ReactEventEmitterMixin":255,"./ViewportMetrics":298,"./isEventSupported":330}],225:[function(require,module,exports){
+},{"./EventConstants":213,"./EventPluginHub":215,"./EventPluginRegistry":216,"./Object.assign":226,"./ReactEventEmitterMixin":264,"./ViewportMetrics":315,"./isEventSupported":349}],231:[function(require,module,exports){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @typechecks
+ * @providesModule ReactCSSTransitionGroup
+ */
+
+'use strict';
+
+var React = require("./React");
+
+var assign = require("./Object.assign");
+
+var ReactTransitionGroup = React.createFactory(
+  require("./ReactTransitionGroup")
+);
+var ReactCSSTransitionGroupChild = React.createFactory(
+  require("./ReactCSSTransitionGroupChild")
+);
+
+var ReactCSSTransitionGroup = React.createClass({
+  displayName: 'ReactCSSTransitionGroup',
+
+  propTypes: {
+    transitionName: React.PropTypes.string.isRequired,
+    transitionAppear: React.PropTypes.bool,
+    transitionEnter: React.PropTypes.bool,
+    transitionLeave: React.PropTypes.bool
+  },
+
+  getDefaultProps: function() {
+    return {
+      transitionAppear: false,
+      transitionEnter: true,
+      transitionLeave: true
+    };
+  },
+
+  _wrapChild: function(child) {
+    // We need to provide this childFactory so that
+    // ReactCSSTransitionGroupChild can receive updates to name, enter, and
+    // leave while it is leaving.
+    return ReactCSSTransitionGroupChild(
+      {
+        name: this.props.transitionName,
+        appear: this.props.transitionAppear,
+        enter: this.props.transitionEnter,
+        leave: this.props.transitionLeave
+      },
+      child
+    );
+  },
+
+  render: function() {
+    return (
+      ReactTransitionGroup(
+        assign({}, this.props, {childFactory: this._wrapChild})
+      )
+    );
+  }
+});
+
+module.exports = ReactCSSTransitionGroup;
+
+},{"./Object.assign":226,"./React":228,"./ReactCSSTransitionGroupChild":232,"./ReactTransitionGroup":295}],232:[function(require,module,exports){
+(function (process){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @typechecks
+ * @providesModule ReactCSSTransitionGroupChild
+ */
+
+'use strict';
+
+var React = require("./React");
+
+var CSSCore = require("./CSSCore");
+var ReactTransitionEvents = require("./ReactTransitionEvents");
+
+var onlyChild = require("./onlyChild");
+var warning = require("./warning");
+
+// We don't remove the element from the DOM until we receive an animationend or
+// transitionend event. If the user screws up and forgets to add an animation
+// their node will be stuck in the DOM forever, so we detect if an animation
+// does not start and if it doesn't, we just call the end listener immediately.
+var TICK = 17;
+var NO_EVENT_TIMEOUT = 5000;
+
+var noEventListener = null;
+
+
+if ("production" !== process.env.NODE_ENV) {
+  noEventListener = function() {
+    ("production" !== process.env.NODE_ENV ? warning(
+      false,
+      'transition(): tried to perform an animation without ' +
+      'an animationend or transitionend event after timeout (' +
+      '%sms). You should either disable this ' +
+      'transition in JS or add a CSS animation/transition.',
+      NO_EVENT_TIMEOUT
+    ) : null);
+  };
+}
+
+var ReactCSSTransitionGroupChild = React.createClass({
+  displayName: 'ReactCSSTransitionGroupChild',
+
+  transition: function(animationType, finishCallback) {
+    var node = this.getDOMNode();
+    var className = this.props.name + '-' + animationType;
+    var activeClassName = className + '-active';
+    var noEventTimeout = null;
+
+    var endListener = function(e) {
+      if (e && e.target !== node) {
+        return;
+      }
+      if ("production" !== process.env.NODE_ENV) {
+        clearTimeout(noEventTimeout);
+      }
+
+      CSSCore.removeClass(node, className);
+      CSSCore.removeClass(node, activeClassName);
+
+      ReactTransitionEvents.removeEndEventListener(node, endListener);
+
+      // Usually this optional callback is used for informing an owner of
+      // a leave animation and telling it to remove the child.
+      if (finishCallback) {
+        finishCallback();
+      }
+    };
+
+    ReactTransitionEvents.addEndEventListener(node, endListener);
+
+    CSSCore.addClass(node, className);
+
+    // Need to do this to actually trigger a transition.
+    this.queueClass(activeClassName);
+
+    if ("production" !== process.env.NODE_ENV) {
+      noEventTimeout = setTimeout(noEventListener, NO_EVENT_TIMEOUT);
+    }
+  },
+
+  queueClass: function(className) {
+    this.classNameQueue.push(className);
+
+    if (!this.timeout) {
+      this.timeout = setTimeout(this.flushClassNameQueue, TICK);
+    }
+  },
+
+  flushClassNameQueue: function() {
+    if (this.isMounted()) {
+      this.classNameQueue.forEach(
+        CSSCore.addClass.bind(CSSCore, this.getDOMNode())
+      );
+    }
+    this.classNameQueue.length = 0;
+    this.timeout = null;
+  },
+
+  componentWillMount: function() {
+    this.classNameQueue = [];
+  },
+
+  componentWillUnmount: function() {
+    if (this.timeout) {
+      clearTimeout(this.timeout);
+    }
+  },
+
+  componentWillAppear: function(done) {
+    if (this.props.appear) {
+      this.transition('appear', done);
+    } else {
+      done();
+    }
+  },
+
+  componentWillEnter: function(done) {
+    if (this.props.enter) {
+      this.transition('enter', done);
+    } else {
+      done();
+    }
+  },
+
+  componentWillLeave: function(done) {
+    if (this.props.leave) {
+      this.transition('leave', done);
+    } else {
+      done();
+    }
+  },
+
+  render: function() {
+    return onlyChild(this.props.children);
+  }
+});
+
+module.exports = ReactCSSTransitionGroupChild;
+
+}).call(this,require('_process'))
+},{"./CSSCore":201,"./React":228,"./ReactTransitionEvents":294,"./onlyChild":358,"./warning":369,"_process":9}],233:[function(require,module,exports){
 /**
  * Copyright 2014-2015, Facebook, Inc.
  * All rights reserved.
@@ -40808,7 +44947,7 @@ var ReactChildReconciler = {
 
 module.exports = ReactChildReconciler;
 
-},{"./ReactReconciler":275,"./flattenChildren":312,"./instantiateReactComponent":328,"./shouldUpdateReactComponent":345}],226:[function(require,module,exports){
+},{"./ReactReconciler":286,"./flattenChildren":331,"./instantiateReactComponent":347,"./shouldUpdateReactComponent":365}],234:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -40961,7 +45100,7 @@ var ReactChildren = {
 module.exports = ReactChildren;
 
 }).call(this,require('_process'))
-},{"./PooledClass":221,"./ReactFragment":257,"./traverseAllChildren":347,"./warning":348,"_process":6}],227:[function(require,module,exports){
+},{"./PooledClass":227,"./ReactFragment":266,"./traverseAllChildren":367,"./warning":369,"_process":9}],235:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -41907,7 +46046,7 @@ var ReactClass = {
 module.exports = ReactClass;
 
 }).call(this,require('_process'))
-},{"./Object.assign":220,"./ReactComponent":228,"./ReactCurrentOwner":233,"./ReactElement":251,"./ReactErrorUtils":254,"./ReactInstanceMap":261,"./ReactLifeCycle":262,"./ReactPropTypeLocationNames":270,"./ReactPropTypeLocations":271,"./ReactUpdateQueue":280,"./invariant":329,"./keyMirror":334,"./keyOf":335,"./warning":348,"_process":6}],228:[function(require,module,exports){
+},{"./Object.assign":226,"./ReactComponent":236,"./ReactCurrentOwner":242,"./ReactElement":260,"./ReactErrorUtils":263,"./ReactInstanceMap":270,"./ReactLifeCycle":271,"./ReactPropTypeLocationNames":281,"./ReactPropTypeLocations":282,"./ReactUpdateQueue":296,"./invariant":348,"./keyMirror":354,"./keyOf":355,"./warning":369,"_process":9}],236:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -42061,7 +46200,7 @@ if ("production" !== process.env.NODE_ENV) {
 module.exports = ReactComponent;
 
 }).call(this,require('_process'))
-},{"./ReactUpdateQueue":280,"./invariant":329,"./warning":348,"_process":6}],229:[function(require,module,exports){
+},{"./ReactUpdateQueue":296,"./invariant":348,"./warning":369,"_process":9}],237:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -42108,7 +46247,7 @@ var ReactComponentBrowserEnvironment = {
 
 module.exports = ReactComponentBrowserEnvironment;
 
-},{"./ReactDOMIDOperations":238,"./ReactMount":264}],230:[function(require,module,exports){
+},{"./ReactDOMIDOperations":247,"./ReactMount":274}],238:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -42169,7 +46308,56 @@ var ReactComponentEnvironment = {
 module.exports = ReactComponentEnvironment;
 
 }).call(this,require('_process'))
-},{"./invariant":329,"_process":6}],231:[function(require,module,exports){
+},{"./invariant":348,"_process":9}],239:[function(require,module,exports){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+* @providesModule ReactComponentWithPureRenderMixin
+*/
+
+'use strict';
+
+var shallowEqual = require("./shallowEqual");
+
+/**
+ * If your React component's render function is "pure", e.g. it will render the
+ * same result given the same props and state, provide this Mixin for a
+ * considerable performance boost.
+ *
+ * Most React components have pure render functions.
+ *
+ * Example:
+ *
+ *   var ReactComponentWithPureRenderMixin =
+ *     require('ReactComponentWithPureRenderMixin');
+ *   React.createClass({
+ *     mixins: [ReactComponentWithPureRenderMixin],
+ *
+ *     render: function() {
+ *       return <div className={this.props.className}>foo</div>;
+ *     }
+ *   });
+ *
+ * Note: This only checks shallow equality for props and state. If these contain
+ * complex data structures this mixin may have false-negatives for deeper
+ * differences. Only mixin to components which have simple props and state, or
+ * use `forceUpdate()` when you know deep data structures have changed.
+ */
+var ReactComponentWithPureRenderMixin = {
+  shouldComponentUpdate: function(nextProps, nextState) {
+    return !shallowEqual(this.props, nextProps) ||
+           !shallowEqual(this.state, nextState);
+  }
+};
+
+module.exports = ReactComponentWithPureRenderMixin;
+
+},{"./shallowEqual":364}],240:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -43082,7 +47270,7 @@ var ReactCompositeComponent = {
 module.exports = ReactCompositeComponent;
 
 }).call(this,require('_process'))
-},{"./Object.assign":220,"./ReactComponentEnvironment":230,"./ReactContext":232,"./ReactCurrentOwner":233,"./ReactElement":251,"./ReactElementValidator":252,"./ReactInstanceMap":261,"./ReactLifeCycle":262,"./ReactNativeComponent":267,"./ReactPerf":269,"./ReactPropTypeLocationNames":270,"./ReactPropTypeLocations":271,"./ReactReconciler":275,"./ReactUpdates":281,"./emptyObject":309,"./invariant":329,"./shouldUpdateReactComponent":345,"./warning":348,"_process":6}],232:[function(require,module,exports){
+},{"./Object.assign":226,"./ReactComponentEnvironment":238,"./ReactContext":241,"./ReactCurrentOwner":242,"./ReactElement":260,"./ReactElementValidator":261,"./ReactInstanceMap":270,"./ReactLifeCycle":271,"./ReactNativeComponent":277,"./ReactPerf":279,"./ReactPropTypeLocationNames":281,"./ReactPropTypeLocations":282,"./ReactReconciler":286,"./ReactUpdates":297,"./emptyObject":328,"./invariant":348,"./shouldUpdateReactComponent":365,"./warning":369,"_process":9}],241:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -43160,7 +47348,7 @@ var ReactContext = {
 module.exports = ReactContext;
 
 }).call(this,require('_process'))
-},{"./Object.assign":220,"./emptyObject":309,"./warning":348,"_process":6}],233:[function(require,module,exports){
+},{"./Object.assign":226,"./emptyObject":328,"./warning":369,"_process":9}],242:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -43194,7 +47382,7 @@ var ReactCurrentOwner = {
 
 module.exports = ReactCurrentOwner;
 
-},{}],234:[function(require,module,exports){
+},{}],243:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -43373,7 +47561,7 @@ var ReactDOM = mapObject({
 module.exports = ReactDOM;
 
 }).call(this,require('_process'))
-},{"./ReactElement":251,"./ReactElementValidator":252,"./mapObject":336,"_process":6}],235:[function(require,module,exports){
+},{"./ReactElement":260,"./ReactElementValidator":261,"./mapObject":356,"_process":9}],244:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -43437,7 +47625,7 @@ var ReactDOMButton = ReactClass.createClass({
 
 module.exports = ReactDOMButton;
 
-},{"./AutoFocusMixin":195,"./ReactBrowserComponentMixin":223,"./ReactClass":227,"./ReactElement":251,"./keyMirror":334}],236:[function(require,module,exports){
+},{"./AutoFocusMixin":199,"./ReactBrowserComponentMixin":229,"./ReactClass":235,"./ReactElement":260,"./keyMirror":354}],245:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -43947,7 +48135,7 @@ ReactDOMComponent.injection = {
 module.exports = ReactDOMComponent;
 
 }).call(this,require('_process'))
-},{"./CSSPropertyOperations":198,"./DOMProperty":203,"./DOMPropertyOperations":204,"./Object.assign":220,"./ReactBrowserEventEmitter":224,"./ReactComponentBrowserEnvironment":229,"./ReactMount":264,"./ReactMultiChild":265,"./ReactPerf":269,"./escapeTextContentForBrowser":310,"./invariant":329,"./isEventSupported":330,"./keyOf":335,"./warning":348,"_process":6}],237:[function(require,module,exports){
+},{"./CSSPropertyOperations":203,"./DOMProperty":208,"./DOMPropertyOperations":209,"./Object.assign":226,"./ReactBrowserEventEmitter":230,"./ReactComponentBrowserEnvironment":237,"./ReactMount":274,"./ReactMultiChild":275,"./ReactPerf":279,"./escapeTextContentForBrowser":329,"./invariant":348,"./isEventSupported":349,"./keyOf":355,"./warning":369,"_process":9}],246:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -43996,7 +48184,7 @@ var ReactDOMForm = ReactClass.createClass({
 
 module.exports = ReactDOMForm;
 
-},{"./EventConstants":208,"./LocalEventTrapMixin":218,"./ReactBrowserComponentMixin":223,"./ReactClass":227,"./ReactElement":251}],238:[function(require,module,exports){
+},{"./EventConstants":213,"./LocalEventTrapMixin":224,"./ReactBrowserComponentMixin":229,"./ReactClass":235,"./ReactElement":260}],247:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -44164,7 +48352,7 @@ ReactPerf.measureMethods(ReactDOMIDOperations, 'ReactDOMIDOperations', {
 module.exports = ReactDOMIDOperations;
 
 }).call(this,require('_process'))
-},{"./CSSPropertyOperations":198,"./DOMChildrenOperations":202,"./DOMPropertyOperations":204,"./ReactMount":264,"./ReactPerf":269,"./invariant":329,"./setInnerHTML":342,"_process":6}],239:[function(require,module,exports){
+},{"./CSSPropertyOperations":203,"./DOMChildrenOperations":207,"./DOMPropertyOperations":209,"./ReactMount":274,"./ReactPerf":279,"./invariant":348,"./setInnerHTML":362,"_process":9}],248:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -44209,7 +48397,7 @@ var ReactDOMIframe = ReactClass.createClass({
 
 module.exports = ReactDOMIframe;
 
-},{"./EventConstants":208,"./LocalEventTrapMixin":218,"./ReactBrowserComponentMixin":223,"./ReactClass":227,"./ReactElement":251}],240:[function(require,module,exports){
+},{"./EventConstants":213,"./LocalEventTrapMixin":224,"./ReactBrowserComponentMixin":229,"./ReactClass":235,"./ReactElement":260}],249:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -44255,7 +48443,7 @@ var ReactDOMImg = ReactClass.createClass({
 
 module.exports = ReactDOMImg;
 
-},{"./EventConstants":208,"./LocalEventTrapMixin":218,"./ReactBrowserComponentMixin":223,"./ReactClass":227,"./ReactElement":251}],241:[function(require,module,exports){
+},{"./EventConstants":213,"./LocalEventTrapMixin":224,"./ReactBrowserComponentMixin":229,"./ReactClass":235,"./ReactElement":260}],250:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -44432,7 +48620,7 @@ var ReactDOMInput = ReactClass.createClass({
 module.exports = ReactDOMInput;
 
 }).call(this,require('_process'))
-},{"./AutoFocusMixin":195,"./DOMPropertyOperations":204,"./LinkedValueUtils":217,"./Object.assign":220,"./ReactBrowserComponentMixin":223,"./ReactClass":227,"./ReactElement":251,"./ReactMount":264,"./ReactUpdates":281,"./invariant":329,"_process":6}],242:[function(require,module,exports){
+},{"./AutoFocusMixin":199,"./DOMPropertyOperations":209,"./LinkedValueUtils":223,"./Object.assign":226,"./ReactBrowserComponentMixin":229,"./ReactClass":235,"./ReactElement":260,"./ReactMount":274,"./ReactUpdates":297,"./invariant":348,"_process":9}],251:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -44484,7 +48672,7 @@ var ReactDOMOption = ReactClass.createClass({
 module.exports = ReactDOMOption;
 
 }).call(this,require('_process'))
-},{"./ReactBrowserComponentMixin":223,"./ReactClass":227,"./ReactElement":251,"./warning":348,"_process":6}],243:[function(require,module,exports){
+},{"./ReactBrowserComponentMixin":229,"./ReactClass":235,"./ReactElement":260,"./warning":369,"_process":9}],252:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -44662,7 +48850,7 @@ var ReactDOMSelect = ReactClass.createClass({
 
 module.exports = ReactDOMSelect;
 
-},{"./AutoFocusMixin":195,"./LinkedValueUtils":217,"./Object.assign":220,"./ReactBrowserComponentMixin":223,"./ReactClass":227,"./ReactElement":251,"./ReactUpdates":281}],244:[function(require,module,exports){
+},{"./AutoFocusMixin":199,"./LinkedValueUtils":223,"./Object.assign":226,"./ReactBrowserComponentMixin":229,"./ReactClass":235,"./ReactElement":260,"./ReactUpdates":297}],253:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -44875,7 +49063,7 @@ var ReactDOMSelection = {
 
 module.exports = ReactDOMSelection;
 
-},{"./ExecutionEnvironment":214,"./getNodeForCharacterOffset":322,"./getTextContentAccessor":324}],245:[function(require,module,exports){
+},{"./ExecutionEnvironment":219,"./getNodeForCharacterOffset":341,"./getTextContentAccessor":343}],254:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -44992,7 +49180,7 @@ assign(ReactDOMTextComponent.prototype, {
 
 module.exports = ReactDOMTextComponent;
 
-},{"./DOMPropertyOperations":204,"./Object.assign":220,"./ReactComponentBrowserEnvironment":229,"./ReactDOMComponent":236,"./escapeTextContentForBrowser":310}],246:[function(require,module,exports){
+},{"./DOMPropertyOperations":209,"./Object.assign":226,"./ReactComponentBrowserEnvironment":237,"./ReactDOMComponent":245,"./escapeTextContentForBrowser":329}],255:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -45132,7 +49320,7 @@ var ReactDOMTextarea = ReactClass.createClass({
 module.exports = ReactDOMTextarea;
 
 }).call(this,require('_process'))
-},{"./AutoFocusMixin":195,"./DOMPropertyOperations":204,"./LinkedValueUtils":217,"./Object.assign":220,"./ReactBrowserComponentMixin":223,"./ReactClass":227,"./ReactElement":251,"./ReactUpdates":281,"./invariant":329,"./warning":348,"_process":6}],247:[function(require,module,exports){
+},{"./AutoFocusMixin":199,"./DOMPropertyOperations":209,"./LinkedValueUtils":223,"./Object.assign":226,"./ReactBrowserComponentMixin":229,"./ReactClass":235,"./ReactElement":260,"./ReactUpdates":297,"./invariant":348,"./warning":369,"_process":9}],256:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -45205,7 +49393,7 @@ var ReactDefaultBatchingStrategy = {
 
 module.exports = ReactDefaultBatchingStrategy;
 
-},{"./Object.assign":220,"./ReactUpdates":281,"./Transaction":297,"./emptyFunction":308}],248:[function(require,module,exports){
+},{"./Object.assign":226,"./ReactUpdates":297,"./Transaction":314,"./emptyFunction":327}],257:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -45364,7 +49552,7 @@ module.exports = {
 };
 
 }).call(this,require('_process'))
-},{"./BeforeInputEventPlugin":196,"./ChangeEventPlugin":200,"./ClientReactRootIndex":201,"./DefaultEventPluginOrder":206,"./EnterLeaveEventPlugin":207,"./ExecutionEnvironment":214,"./HTMLDOMPropertyConfig":216,"./MobileSafariClickEventPlugin":219,"./ReactBrowserComponentMixin":223,"./ReactClass":227,"./ReactComponentBrowserEnvironment":229,"./ReactDOMButton":235,"./ReactDOMComponent":236,"./ReactDOMForm":237,"./ReactDOMIDOperations":238,"./ReactDOMIframe":239,"./ReactDOMImg":240,"./ReactDOMInput":241,"./ReactDOMOption":242,"./ReactDOMSelect":243,"./ReactDOMTextComponent":245,"./ReactDOMTextarea":246,"./ReactDefaultBatchingStrategy":247,"./ReactDefaultPerf":249,"./ReactElement":251,"./ReactEventListener":256,"./ReactInjection":258,"./ReactInstanceHandles":260,"./ReactMount":264,"./ReactReconcileTransaction":274,"./SVGDOMPropertyConfig":282,"./SelectEventPlugin":283,"./ServerReactRootIndex":284,"./SimpleEventPlugin":285,"./createFullPageComponent":305,"_process":6}],249:[function(require,module,exports){
+},{"./BeforeInputEventPlugin":200,"./ChangeEventPlugin":205,"./ClientReactRootIndex":206,"./DefaultEventPluginOrder":211,"./EnterLeaveEventPlugin":212,"./ExecutionEnvironment":219,"./HTMLDOMPropertyConfig":221,"./MobileSafariClickEventPlugin":225,"./ReactBrowserComponentMixin":229,"./ReactClass":235,"./ReactComponentBrowserEnvironment":237,"./ReactDOMButton":244,"./ReactDOMComponent":245,"./ReactDOMForm":246,"./ReactDOMIDOperations":247,"./ReactDOMIframe":248,"./ReactDOMImg":249,"./ReactDOMInput":250,"./ReactDOMOption":251,"./ReactDOMSelect":252,"./ReactDOMTextComponent":254,"./ReactDOMTextarea":255,"./ReactDefaultBatchingStrategy":256,"./ReactDefaultPerf":258,"./ReactElement":260,"./ReactEventListener":265,"./ReactInjection":267,"./ReactInstanceHandles":269,"./ReactMount":274,"./ReactReconcileTransaction":285,"./SVGDOMPropertyConfig":299,"./SelectEventPlugin":300,"./ServerReactRootIndex":301,"./SimpleEventPlugin":302,"./createFullPageComponent":323,"_process":9}],258:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -45630,7 +49818,7 @@ var ReactDefaultPerf = {
 
 module.exports = ReactDefaultPerf;
 
-},{"./DOMProperty":203,"./ReactDefaultPerfAnalysis":250,"./ReactMount":264,"./ReactPerf":269,"./performanceNow":340}],250:[function(require,module,exports){
+},{"./DOMProperty":208,"./ReactDefaultPerfAnalysis":259,"./ReactMount":274,"./ReactPerf":279,"./performanceNow":360}],259:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -45836,7 +50024,7 @@ var ReactDefaultPerfAnalysis = {
 
 module.exports = ReactDefaultPerfAnalysis;
 
-},{"./Object.assign":220}],251:[function(require,module,exports){
+},{"./Object.assign":226}],260:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -46144,7 +50332,7 @@ ReactElement.isValidElement = function(object) {
 module.exports = ReactElement;
 
 }).call(this,require('_process'))
-},{"./Object.assign":220,"./ReactContext":232,"./ReactCurrentOwner":233,"./warning":348,"_process":6}],252:[function(require,module,exports){
+},{"./Object.assign":226,"./ReactContext":241,"./ReactCurrentOwner":242,"./warning":369,"_process":9}],261:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -46609,7 +50797,7 @@ var ReactElementValidator = {
 module.exports = ReactElementValidator;
 
 }).call(this,require('_process'))
-},{"./ReactCurrentOwner":233,"./ReactElement":251,"./ReactFragment":257,"./ReactNativeComponent":267,"./ReactPropTypeLocationNames":270,"./ReactPropTypeLocations":271,"./getIteratorFn":320,"./invariant":329,"./warning":348,"_process":6}],253:[function(require,module,exports){
+},{"./ReactCurrentOwner":242,"./ReactElement":260,"./ReactFragment":266,"./ReactNativeComponent":277,"./ReactPropTypeLocationNames":281,"./ReactPropTypeLocations":282,"./getIteratorFn":339,"./invariant":348,"./warning":369,"_process":9}],262:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -46704,7 +50892,7 @@ var ReactEmptyComponent = {
 module.exports = ReactEmptyComponent;
 
 }).call(this,require('_process'))
-},{"./ReactElement":251,"./ReactInstanceMap":261,"./invariant":329,"_process":6}],254:[function(require,module,exports){
+},{"./ReactElement":260,"./ReactInstanceMap":270,"./invariant":348,"_process":9}],263:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -46736,7 +50924,7 @@ var ReactErrorUtils = {
 
 module.exports = ReactErrorUtils;
 
-},{}],255:[function(require,module,exports){
+},{}],264:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -46786,7 +50974,7 @@ var ReactEventEmitterMixin = {
 
 module.exports = ReactEventEmitterMixin;
 
-},{"./EventPluginHub":210}],256:[function(require,module,exports){
+},{"./EventPluginHub":215}],265:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -46969,7 +51157,7 @@ var ReactEventListener = {
 
 module.exports = ReactEventListener;
 
-},{"./EventListener":209,"./ExecutionEnvironment":214,"./Object.assign":220,"./PooledClass":221,"./ReactInstanceHandles":260,"./ReactMount":264,"./ReactUpdates":281,"./getEventTarget":319,"./getUnboundedScrollPosition":325}],257:[function(require,module,exports){
+},{"./EventListener":214,"./ExecutionEnvironment":219,"./Object.assign":226,"./PooledClass":227,"./ReactInstanceHandles":269,"./ReactMount":274,"./ReactUpdates":297,"./getEventTarget":338,"./getUnboundedScrollPosition":344}],266:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2015, Facebook, Inc.
@@ -47154,7 +51342,7 @@ var ReactFragment = {
 module.exports = ReactFragment;
 
 }).call(this,require('_process'))
-},{"./ReactElement":251,"./warning":348,"_process":6}],258:[function(require,module,exports){
+},{"./ReactElement":260,"./warning":369,"_process":9}],267:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -47196,7 +51384,7 @@ var ReactInjection = {
 
 module.exports = ReactInjection;
 
-},{"./DOMProperty":203,"./EventPluginHub":210,"./ReactBrowserEventEmitter":224,"./ReactClass":227,"./ReactComponentEnvironment":230,"./ReactDOMComponent":236,"./ReactEmptyComponent":253,"./ReactNativeComponent":267,"./ReactPerf":269,"./ReactRootIndex":277,"./ReactUpdates":281}],259:[function(require,module,exports){
+},{"./DOMProperty":208,"./EventPluginHub":215,"./ReactBrowserEventEmitter":230,"./ReactClass":235,"./ReactComponentEnvironment":238,"./ReactDOMComponent":245,"./ReactEmptyComponent":262,"./ReactNativeComponent":277,"./ReactPerf":279,"./ReactRootIndex":288,"./ReactUpdates":297}],268:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -47331,7 +51519,7 @@ var ReactInputSelection = {
 
 module.exports = ReactInputSelection;
 
-},{"./ReactDOMSelection":244,"./containsNode":303,"./focusNode":313,"./getActiveElement":315}],260:[function(require,module,exports){
+},{"./ReactDOMSelection":253,"./containsNode":321,"./focusNode":332,"./getActiveElement":334}],269:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -47667,7 +51855,7 @@ var ReactInstanceHandles = {
 module.exports = ReactInstanceHandles;
 
 }).call(this,require('_process'))
-},{"./ReactRootIndex":277,"./invariant":329,"_process":6}],261:[function(require,module,exports){
+},{"./ReactRootIndex":288,"./invariant":348,"_process":9}],270:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -47716,7 +51904,7 @@ var ReactInstanceMap = {
 
 module.exports = ReactInstanceMap;
 
-},{}],262:[function(require,module,exports){
+},{}],271:[function(require,module,exports){
 /**
  * Copyright 2015, Facebook, Inc.
  * All rights reserved.
@@ -47753,7 +51941,80 @@ var ReactLifeCycle = {
 
 module.exports = ReactLifeCycle;
 
-},{}],263:[function(require,module,exports){
+},{}],272:[function(require,module,exports){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule ReactLink
+ * @typechecks static-only
+ */
+
+'use strict';
+
+/**
+ * ReactLink encapsulates a common pattern in which a component wants to modify
+ * a prop received from its parent. ReactLink allows the parent to pass down a
+ * value coupled with a callback that, when invoked, expresses an intent to
+ * modify that value. For example:
+ *
+ * React.createClass({
+ *   getInitialState: function() {
+ *     return {value: ''};
+ *   },
+ *   render: function() {
+ *     var valueLink = new ReactLink(this.state.value, this._handleValueChange);
+ *     return <input valueLink={valueLink} />;
+ *   },
+ *   this._handleValueChange: function(newValue) {
+ *     this.setState({value: newValue});
+ *   }
+ * });
+ *
+ * We have provided some sugary mixins to make the creation and
+ * consumption of ReactLink easier; see LinkedValueUtils and LinkedStateMixin.
+ */
+
+var React = require("./React");
+
+/**
+ * @param {*} value current value of the link
+ * @param {function} requestChange callback to request a change
+ */
+function ReactLink(value, requestChange) {
+  this.value = value;
+  this.requestChange = requestChange;
+}
+
+/**
+ * Creates a PropType that enforces the ReactLink API and optionally checks the
+ * type of the value being passed inside the link. Example:
+ *
+ * MyComponent.propTypes = {
+ *   tabIndexLink: ReactLink.PropTypes.link(React.PropTypes.number)
+ * }
+ */
+function createLinkTypeChecker(linkType) {
+  var shapes = {
+    value: typeof linkType === 'undefined' ?
+      React.PropTypes.any.isRequired :
+      linkType.isRequired,
+    requestChange: React.PropTypes.func.isRequired
+  };
+  return React.PropTypes.shape(shapes);
+}
+
+ReactLink.PropTypes = {
+  link: createLinkTypeChecker
+};
+
+module.exports = ReactLink;
+
+},{"./React":228}],273:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -47801,7 +52062,7 @@ var ReactMarkupChecksum = {
 
 module.exports = ReactMarkupChecksum;
 
-},{"./adler32":300}],264:[function(require,module,exports){
+},{"./adler32":317}],274:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -48692,7 +52953,7 @@ ReactPerf.measureMethods(ReactMount, 'ReactMount', {
 module.exports = ReactMount;
 
 }).call(this,require('_process'))
-},{"./DOMProperty":203,"./ReactBrowserEventEmitter":224,"./ReactCurrentOwner":233,"./ReactElement":251,"./ReactElementValidator":252,"./ReactEmptyComponent":253,"./ReactInstanceHandles":260,"./ReactInstanceMap":261,"./ReactMarkupChecksum":263,"./ReactPerf":269,"./ReactReconciler":275,"./ReactUpdateQueue":280,"./ReactUpdates":281,"./containsNode":303,"./emptyObject":309,"./getReactRootElementInContainer":323,"./instantiateReactComponent":328,"./invariant":329,"./setInnerHTML":342,"./shouldUpdateReactComponent":345,"./warning":348,"_process":6}],265:[function(require,module,exports){
+},{"./DOMProperty":208,"./ReactBrowserEventEmitter":230,"./ReactCurrentOwner":242,"./ReactElement":260,"./ReactElementValidator":261,"./ReactEmptyComponent":262,"./ReactInstanceHandles":269,"./ReactInstanceMap":270,"./ReactMarkupChecksum":273,"./ReactPerf":279,"./ReactReconciler":286,"./ReactUpdateQueue":296,"./ReactUpdates":297,"./containsNode":321,"./emptyObject":328,"./getReactRootElementInContainer":342,"./instantiateReactComponent":347,"./invariant":348,"./setInnerHTML":362,"./shouldUpdateReactComponent":365,"./warning":369,"_process":9}],275:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -49122,7 +53383,7 @@ var ReactMultiChild = {
 
 module.exports = ReactMultiChild;
 
-},{"./ReactChildReconciler":225,"./ReactComponentEnvironment":230,"./ReactMultiChildUpdateTypes":266,"./ReactReconciler":275}],266:[function(require,module,exports){
+},{"./ReactChildReconciler":233,"./ReactComponentEnvironment":238,"./ReactMultiChildUpdateTypes":276,"./ReactReconciler":286}],276:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -49155,7 +53416,7 @@ var ReactMultiChildUpdateTypes = keyMirror({
 
 module.exports = ReactMultiChildUpdateTypes;
 
-},{"./keyMirror":334}],267:[function(require,module,exports){
+},{"./keyMirror":354}],277:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -49262,7 +53523,7 @@ var ReactNativeComponent = {
 module.exports = ReactNativeComponent;
 
 }).call(this,require('_process'))
-},{"./Object.assign":220,"./invariant":329,"_process":6}],268:[function(require,module,exports){
+},{"./Object.assign":226,"./invariant":348,"_process":9}],278:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -49374,7 +53635,7 @@ var ReactOwner = {
 module.exports = ReactOwner;
 
 }).call(this,require('_process'))
-},{"./invariant":329,"_process":6}],269:[function(require,module,exports){
+},{"./invariant":348,"_process":9}],279:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -49478,7 +53739,117 @@ function _noMeasure(objName, fnName, func) {
 module.exports = ReactPerf;
 
 }).call(this,require('_process'))
-},{"_process":6}],270:[function(require,module,exports){
+},{"_process":9}],280:[function(require,module,exports){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule ReactPropTransferer
+ */
+
+'use strict';
+
+var assign = require("./Object.assign");
+var emptyFunction = require("./emptyFunction");
+var joinClasses = require("./joinClasses");
+
+/**
+ * Creates a transfer strategy that will merge prop values using the supplied
+ * `mergeStrategy`. If a prop was previously unset, this just sets it.
+ *
+ * @param {function} mergeStrategy
+ * @return {function}
+ */
+function createTransferStrategy(mergeStrategy) {
+  return function(props, key, value) {
+    if (!props.hasOwnProperty(key)) {
+      props[key] = value;
+    } else {
+      props[key] = mergeStrategy(props[key], value);
+    }
+  };
+}
+
+var transferStrategyMerge = createTransferStrategy(function(a, b) {
+  // `merge` overrides the first object's (`props[key]` above) keys using the
+  // second object's (`value`) keys. An object's style's existing `propA` would
+  // get overridden. Flip the order here.
+  return assign({}, b, a);
+});
+
+/**
+ * Transfer strategies dictate how props are transferred by `transferPropsTo`.
+ * NOTE: if you add any more exceptions to this list you should be sure to
+ * update `cloneWithProps()` accordingly.
+ */
+var TransferStrategies = {
+  /**
+   * Never transfer `children`.
+   */
+  children: emptyFunction,
+  /**
+   * Transfer the `className` prop by merging them.
+   */
+  className: createTransferStrategy(joinClasses),
+  /**
+   * Transfer the `style` prop (which is an object) by merging them.
+   */
+  style: transferStrategyMerge
+};
+
+/**
+ * Mutates the first argument by transferring the properties from the second
+ * argument.
+ *
+ * @param {object} props
+ * @param {object} newProps
+ * @return {object}
+ */
+function transferInto(props, newProps) {
+  for (var thisKey in newProps) {
+    if (!newProps.hasOwnProperty(thisKey)) {
+      continue;
+    }
+
+    var transferStrategy = TransferStrategies[thisKey];
+
+    if (transferStrategy && TransferStrategies.hasOwnProperty(thisKey)) {
+      transferStrategy(props, thisKey, newProps[thisKey]);
+    } else if (!props.hasOwnProperty(thisKey)) {
+      props[thisKey] = newProps[thisKey];
+    }
+  }
+  return props;
+}
+
+/**
+ * ReactPropTransferer are capable of transferring props to another component
+ * using a `transferPropsTo` method.
+ *
+ * @class ReactPropTransferer
+ */
+var ReactPropTransferer = {
+
+  /**
+   * Merge two props objects using TransferStrategies.
+   *
+   * @param {object} oldProps original props (they take precedence)
+   * @param {object} newProps new props to merge in
+   * @return {object} a new object containing both sets of props merged.
+   */
+  mergeProps: function(oldProps, newProps) {
+    return transferInto(assign({}, oldProps), newProps);
+  }
+
+};
+
+module.exports = ReactPropTransferer;
+
+},{"./Object.assign":226,"./emptyFunction":327,"./joinClasses":353}],281:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -49506,7 +53877,7 @@ if ("production" !== process.env.NODE_ENV) {
 module.exports = ReactPropTypeLocationNames;
 
 }).call(this,require('_process'))
-},{"_process":6}],271:[function(require,module,exports){
+},{"_process":9}],282:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -49530,7 +53901,7 @@ var ReactPropTypeLocations = keyMirror({
 
 module.exports = ReactPropTypeLocations;
 
-},{"./keyMirror":334}],272:[function(require,module,exports){
+},{"./keyMirror":354}],283:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -49879,7 +54250,7 @@ function getPreciseType(propValue) {
 
 module.exports = ReactPropTypes;
 
-},{"./ReactElement":251,"./ReactFragment":257,"./ReactPropTypeLocationNames":270,"./emptyFunction":308}],273:[function(require,module,exports){
+},{"./ReactElement":260,"./ReactFragment":266,"./ReactPropTypeLocationNames":281,"./emptyFunction":327}],284:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -49935,7 +54306,7 @@ PooledClass.addPoolingTo(ReactPutListenerQueue);
 
 module.exports = ReactPutListenerQueue;
 
-},{"./Object.assign":220,"./PooledClass":221,"./ReactBrowserEventEmitter":224}],274:[function(require,module,exports){
+},{"./Object.assign":226,"./PooledClass":227,"./ReactBrowserEventEmitter":230}],285:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -50111,7 +54482,7 @@ PooledClass.addPoolingTo(ReactReconcileTransaction);
 
 module.exports = ReactReconcileTransaction;
 
-},{"./CallbackQueue":199,"./Object.assign":220,"./PooledClass":221,"./ReactBrowserEventEmitter":224,"./ReactInputSelection":259,"./ReactPutListenerQueue":273,"./Transaction":297}],275:[function(require,module,exports){
+},{"./CallbackQueue":204,"./Object.assign":226,"./PooledClass":227,"./ReactBrowserEventEmitter":230,"./ReactInputSelection":268,"./ReactPutListenerQueue":284,"./Transaction":314}],286:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -50235,7 +54606,7 @@ var ReactReconciler = {
 module.exports = ReactReconciler;
 
 }).call(this,require('_process'))
-},{"./ReactElementValidator":252,"./ReactRef":276,"_process":6}],276:[function(require,module,exports){
+},{"./ReactElementValidator":261,"./ReactRef":287,"_process":9}],287:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -50306,7 +54677,7 @@ ReactRef.detachRefs = function(instance, element) {
 
 module.exports = ReactRef;
 
-},{"./ReactOwner":268}],277:[function(require,module,exports){
+},{"./ReactOwner":278}],288:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -50337,7 +54708,7 @@ var ReactRootIndex = {
 
 module.exports = ReactRootIndex;
 
-},{}],278:[function(require,module,exports){
+},{}],289:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -50419,7 +54790,7 @@ module.exports = {
 };
 
 }).call(this,require('_process'))
-},{"./ReactElement":251,"./ReactInstanceHandles":260,"./ReactMarkupChecksum":263,"./ReactServerRenderingTransaction":279,"./emptyObject":309,"./instantiateReactComponent":328,"./invariant":329,"_process":6}],279:[function(require,module,exports){
+},{"./ReactElement":260,"./ReactInstanceHandles":269,"./ReactMarkupChecksum":273,"./ReactServerRenderingTransaction":290,"./emptyObject":328,"./instantiateReactComponent":347,"./invariant":348,"_process":9}],290:[function(require,module,exports){
 /**
  * Copyright 2014-2015, Facebook, Inc.
  * All rights reserved.
@@ -50532,7 +54903,1073 @@ PooledClass.addPoolingTo(ReactServerRenderingTransaction);
 
 module.exports = ReactServerRenderingTransaction;
 
-},{"./CallbackQueue":199,"./Object.assign":220,"./PooledClass":221,"./ReactPutListenerQueue":273,"./Transaction":297,"./emptyFunction":308}],280:[function(require,module,exports){
+},{"./CallbackQueue":204,"./Object.assign":226,"./PooledClass":227,"./ReactPutListenerQueue":284,"./Transaction":314,"./emptyFunction":327}],291:[function(require,module,exports){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule ReactStateSetters
+ */
+
+'use strict';
+
+var ReactStateSetters = {
+  /**
+   * Returns a function that calls the provided function, and uses the result
+   * of that to set the component's state.
+   *
+   * @param {ReactCompositeComponent} component
+   * @param {function} funcReturningState Returned callback uses this to
+   *                                      determine how to update state.
+   * @return {function} callback that when invoked uses funcReturningState to
+   *                    determined the object literal to setState.
+   */
+  createStateSetter: function(component, funcReturningState) {
+    return function(a, b, c, d, e, f) {
+      var partialState = funcReturningState.call(component, a, b, c, d, e, f);
+      if (partialState) {
+        component.setState(partialState);
+      }
+    };
+  },
+
+  /**
+   * Returns a single-argument callback that can be used to update a single
+   * key in the component's state.
+   *
+   * Note: this is memoized function, which makes it inexpensive to call.
+   *
+   * @param {ReactCompositeComponent} component
+   * @param {string} key The key in the state that you should update.
+   * @return {function} callback of 1 argument which calls setState() with
+   *                    the provided keyName and callback argument.
+   */
+  createStateKeySetter: function(component, key) {
+    // Memoize the setters.
+    var cache = component.__keySetters || (component.__keySetters = {});
+    return cache[key] || (cache[key] = createStateKeySetter(component, key));
+  }
+};
+
+function createStateKeySetter(component, key) {
+  // Partial state is allocated outside of the function closure so it can be
+  // reused with every call, avoiding memory allocation when this function
+  // is called.
+  var partialState = {};
+  return function stateKeySetter(value) {
+    partialState[key] = value;
+    component.setState(partialState);
+  };
+}
+
+ReactStateSetters.Mixin = {
+  /**
+   * Returns a function that calls the provided function, and uses the result
+   * of that to set the component's state.
+   *
+   * For example, these statements are equivalent:
+   *
+   *   this.setState({x: 1});
+   *   this.createStateSetter(function(xValue) {
+   *     return {x: xValue};
+   *   })(1);
+   *
+   * @param {function} funcReturningState Returned callback uses this to
+   *                                      determine how to update state.
+   * @return {function} callback that when invoked uses funcReturningState to
+   *                    determined the object literal to setState.
+   */
+  createStateSetter: function(funcReturningState) {
+    return ReactStateSetters.createStateSetter(this, funcReturningState);
+  },
+
+  /**
+   * Returns a single-argument callback that can be used to update a single
+   * key in the component's state.
+   *
+   * For example, these statements are equivalent:
+   *
+   *   this.setState({x: 1});
+   *   this.createStateKeySetter('x')(1);
+   *
+   * Note: this is memoized function, which makes it inexpensive to call.
+   *
+   * @param {string} key The key in the state that you should update.
+   * @return {function} callback of 1 argument which calls setState() with
+   *                    the provided keyName and callback argument.
+   */
+  createStateKeySetter: function(key) {
+    return ReactStateSetters.createStateKeySetter(this, key);
+  }
+};
+
+module.exports = ReactStateSetters;
+
+},{}],292:[function(require,module,exports){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule ReactTestUtils
+ */
+
+'use strict';
+
+var EventConstants = require("./EventConstants");
+var EventPluginHub = require("./EventPluginHub");
+var EventPropagators = require("./EventPropagators");
+var React = require("./React");
+var ReactElement = require("./ReactElement");
+var ReactEmptyComponent = require("./ReactEmptyComponent");
+var ReactBrowserEventEmitter = require("./ReactBrowserEventEmitter");
+var ReactCompositeComponent = require("./ReactCompositeComponent");
+var ReactInstanceHandles = require("./ReactInstanceHandles");
+var ReactInstanceMap = require("./ReactInstanceMap");
+var ReactMount = require("./ReactMount");
+var ReactUpdates = require("./ReactUpdates");
+var SyntheticEvent = require("./SyntheticEvent");
+
+var assign = require("./Object.assign");
+var emptyObject = require("./emptyObject");
+
+var topLevelTypes = EventConstants.topLevelTypes;
+
+function Event(suffix) {}
+
+/**
+ * @class ReactTestUtils
+ */
+
+/**
+ * Todo: Support the entire DOM.scry query syntax. For now, these simple
+ * utilities will suffice for testing purposes.
+ * @lends ReactTestUtils
+ */
+var ReactTestUtils = {
+  renderIntoDocument: function(instance) {
+    var div = document.createElement('div');
+    // None of our tests actually require attaching the container to the
+    // DOM, and doing so creates a mess that we rely on test isolation to
+    // clean up, so we're going to stop honoring the name of this method
+    // (and probably rename it eventually) if no problems arise.
+    // document.documentElement.appendChild(div);
+    return React.render(instance, div);
+  },
+
+  isElement: function(element) {
+    return ReactElement.isValidElement(element);
+  },
+
+  isElementOfType: function(inst, convenienceConstructor) {
+    return (
+      ReactElement.isValidElement(inst) &&
+      inst.type === convenienceConstructor
+    );
+  },
+
+  isDOMComponent: function(inst) {
+    // TODO: Fix this heuristic. It's just here because composites can currently
+    // pretend to be DOM components.
+    return !!(inst && inst.tagName && inst.getDOMNode);
+  },
+
+  isDOMComponentElement: function(inst) {
+    return !!(inst &&
+              ReactElement.isValidElement(inst) &&
+              !!inst.tagName);
+  },
+
+  isCompositeComponent: function(inst) {
+    return typeof inst.render === 'function' &&
+           typeof inst.setState === 'function';
+  },
+
+  isCompositeComponentWithType: function(inst, type) {
+    return !!(ReactTestUtils.isCompositeComponent(inst) &&
+             (inst.constructor === type));
+  },
+
+  isCompositeComponentElement: function(inst) {
+    if (!ReactElement.isValidElement(inst)) {
+      return false;
+    }
+    // We check the prototype of the type that will get mounted, not the
+    // instance itself. This is a future proof way of duck typing.
+    var prototype = inst.type.prototype;
+    return (
+      typeof prototype.render === 'function' &&
+      typeof prototype.setState === 'function'
+    );
+  },
+
+  isCompositeComponentElementWithType: function(inst, type) {
+    return !!(ReactTestUtils.isCompositeComponentElement(inst) &&
+             (inst.constructor === type));
+  },
+
+  getRenderedChildOfCompositeComponent: function(inst) {
+    if (!ReactTestUtils.isCompositeComponent(inst)) {
+      return null;
+    }
+    var internalInstance = ReactInstanceMap.get(inst);
+    return internalInstance._renderedComponent.getPublicInstance();
+  },
+
+  findAllInRenderedTree: function(inst, test) {
+    if (!inst) {
+      return [];
+    }
+    var ret = test(inst) ? [inst] : [];
+    if (ReactTestUtils.isDOMComponent(inst)) {
+      var internalInstance = ReactInstanceMap.get(inst);
+      var renderedChildren = internalInstance
+        ._renderedComponent
+        ._renderedChildren;
+      var key;
+      for (key in renderedChildren) {
+        if (!renderedChildren.hasOwnProperty(key)) {
+          continue;
+        }
+        if (!renderedChildren[key].getPublicInstance) {
+          continue;
+        }
+        ret = ret.concat(
+          ReactTestUtils.findAllInRenderedTree(
+            renderedChildren[key].getPublicInstance(),
+            test
+          )
+        );
+      }
+    } else if (ReactTestUtils.isCompositeComponent(inst)) {
+      ret = ret.concat(
+        ReactTestUtils.findAllInRenderedTree(
+          ReactTestUtils.getRenderedChildOfCompositeComponent(inst),
+          test
+        )
+      );
+    }
+    return ret;
+  },
+
+  /**
+   * Finds all instance of components in the rendered tree that are DOM
+   * components with the class name matching `className`.
+   * @return an array of all the matches.
+   */
+  scryRenderedDOMComponentsWithClass: function(root, className) {
+    return ReactTestUtils.findAllInRenderedTree(root, function(inst) {
+      var instClassName = inst.props.className;
+      return ReactTestUtils.isDOMComponent(inst) && (
+        (instClassName && (' ' + instClassName + ' ').indexOf(' ' + className + ' ') !== -1)
+      );
+    });
+  },
+
+  /**
+   * Like scryRenderedDOMComponentsWithClass but expects there to be one result,
+   * and returns that one result, or throws exception if there is any other
+   * number of matches besides one.
+   * @return {!ReactDOMComponent} The one match.
+   */
+  findRenderedDOMComponentWithClass: function(root, className) {
+    var all =
+      ReactTestUtils.scryRenderedDOMComponentsWithClass(root, className);
+    if (all.length !== 1) {
+      throw new Error('Did not find exactly one match ' +
+        '(found: ' + all.length + ') for class:' + className
+      );
+    }
+    return all[0];
+  },
+
+
+  /**
+   * Finds all instance of components in the rendered tree that are DOM
+   * components with the tag name matching `tagName`.
+   * @return an array of all the matches.
+   */
+  scryRenderedDOMComponentsWithTag: function(root, tagName) {
+    return ReactTestUtils.findAllInRenderedTree(root, function(inst) {
+      return ReactTestUtils.isDOMComponent(inst) &&
+            inst.tagName === tagName.toUpperCase();
+    });
+  },
+
+  /**
+   * Like scryRenderedDOMComponentsWithTag but expects there to be one result,
+   * and returns that one result, or throws exception if there is any other
+   * number of matches besides one.
+   * @return {!ReactDOMComponent} The one match.
+   */
+  findRenderedDOMComponentWithTag: function(root, tagName) {
+    var all = ReactTestUtils.scryRenderedDOMComponentsWithTag(root, tagName);
+    if (all.length !== 1) {
+      throw new Error('Did not find exactly one match for tag:' + tagName);
+    }
+    return all[0];
+  },
+
+
+  /**
+   * Finds all instances of components with type equal to `componentType`.
+   * @return an array of all the matches.
+   */
+  scryRenderedComponentsWithType: function(root, componentType) {
+    return ReactTestUtils.findAllInRenderedTree(root, function(inst) {
+      return ReactTestUtils.isCompositeComponentWithType(
+        inst,
+        componentType
+      );
+    });
+  },
+
+  /**
+   * Same as `scryRenderedComponentsWithType` but expects there to be one result
+   * and returns that one result, or throws exception if there is any other
+   * number of matches besides one.
+   * @return {!ReactComponent} The one match.
+   */
+  findRenderedComponentWithType: function(root, componentType) {
+    var all = ReactTestUtils.scryRenderedComponentsWithType(
+      root,
+      componentType
+    );
+    if (all.length !== 1) {
+      throw new Error(
+        'Did not find exactly one match for componentType:' + componentType
+      );
+    }
+    return all[0];
+  },
+
+  /**
+   * Pass a mocked component module to this method to augment it with
+   * useful methods that allow it to be used as a dummy React component.
+   * Instead of rendering as usual, the component will become a simple
+   * <div> containing any provided children.
+   *
+   * @param {object} module the mock function object exported from a
+   *                        module that defines the component to be mocked
+   * @param {?string} mockTagName optional dummy root tag name to return
+   *                              from render method (overrides
+   *                              module.mockTagName if provided)
+   * @return {object} the ReactTestUtils object (for chaining)
+   */
+  mockComponent: function(module, mockTagName) {
+    mockTagName = mockTagName || module.mockTagName || "div";
+
+    module.prototype.render.mockImplementation(function() {
+      return React.createElement(
+        mockTagName,
+        null,
+        this.props.children
+      );
+    });
+
+    return this;
+  },
+
+  /**
+   * Simulates a top level event being dispatched from a raw event that occured
+   * on an `Element` node.
+   * @param topLevelType {Object} A type from `EventConstants.topLevelTypes`
+   * @param {!Element} node The dom to simulate an event occurring on.
+   * @param {?Event} fakeNativeEvent Fake native event to use in SyntheticEvent.
+   */
+  simulateNativeEventOnNode: function(topLevelType, node, fakeNativeEvent) {
+    fakeNativeEvent.target = node;
+    ReactBrowserEventEmitter.ReactEventListener.dispatchEvent(
+      topLevelType,
+      fakeNativeEvent
+    );
+  },
+
+  /**
+   * Simulates a top level event being dispatched from a raw event that occured
+   * on the `ReactDOMComponent` `comp`.
+   * @param topLevelType {Object} A type from `EventConstants.topLevelTypes`.
+   * @param comp {!ReactDOMComponent}
+   * @param {?Event} fakeNativeEvent Fake native event to use in SyntheticEvent.
+   */
+  simulateNativeEventOnDOMComponent: function(
+      topLevelType,
+      comp,
+      fakeNativeEvent) {
+    ReactTestUtils.simulateNativeEventOnNode(
+      topLevelType,
+      comp.getDOMNode(),
+      fakeNativeEvent
+    );
+  },
+
+  nativeTouchData: function(x, y) {
+    return {
+      touches: [
+        {pageX: x, pageY: y}
+      ]
+    };
+  },
+
+  createRenderer: function() {
+    return new ReactShallowRenderer();
+  },
+
+  Simulate: null,
+  SimulateNative: {}
+};
+
+/**
+ * @class ReactShallowRenderer
+ */
+var ReactShallowRenderer = function() {
+  this._instance = null;
+};
+
+ReactShallowRenderer.prototype.getRenderOutput = function() {
+  return (
+    (this._instance && this._instance._renderedComponent &&
+     this._instance._renderedComponent._renderedOutput)
+    || null
+  );
+};
+
+var NoopInternalComponent = function(element) {
+  this._renderedOutput = element;
+  this._currentElement = element === null || element === false ?
+    ReactEmptyComponent.emptyElement :
+    element;
+};
+
+NoopInternalComponent.prototype = {
+
+  mountComponent: function() {
+  },
+
+  receiveComponent: function(element) {
+    this._renderedOutput = element;
+    this._currentElement = element === null || element === false ?
+      ReactEmptyComponent.emptyElement :
+      element;
+  },
+
+  unmountComponent: function() {
+  }
+
+};
+
+var ShallowComponentWrapper = function() { };
+assign(
+  ShallowComponentWrapper.prototype,
+  ReactCompositeComponent.Mixin, {
+    _instantiateReactComponent: function(element) {
+      return new NoopInternalComponent(element);
+    },
+    _replaceNodeWithMarkupByID: function() {},
+    _renderValidatedComponent:
+      ReactCompositeComponent.Mixin.
+        _renderValidatedComponentWithoutOwnerOrContext
+  }
+);
+
+ReactShallowRenderer.prototype.render = function(element, context) {
+  if (!context) {
+    context = emptyObject;
+  }
+  var transaction = ReactUpdates.ReactReconcileTransaction.getPooled();
+  this._render(element, transaction, context);
+  ReactUpdates.ReactReconcileTransaction.release(transaction);
+};
+
+ReactShallowRenderer.prototype.unmount = function() {
+  if (this._instance) {
+    this._instance.unmountComponent();
+  }
+};
+
+ReactShallowRenderer.prototype._render = function(element, transaction, context) {
+  if (!this._instance) {
+    var rootID = ReactInstanceHandles.createReactRootID();
+    var instance = new ShallowComponentWrapper(element.type);
+    instance.construct(element);
+
+    instance.mountComponent(rootID, transaction, context);
+
+    this._instance = instance;
+  } else {
+    this._instance.receiveComponent(element, transaction, context);
+  }
+};
+
+/**
+ * Exports:
+ *
+ * - `ReactTestUtils.Simulate.click(Element/ReactDOMComponent)`
+ * - `ReactTestUtils.Simulate.mouseMove(Element/ReactDOMComponent)`
+ * - `ReactTestUtils.Simulate.change(Element/ReactDOMComponent)`
+ * - ... (All keys from event plugin `eventTypes` objects)
+ */
+function makeSimulator(eventType) {
+  return function(domComponentOrNode, eventData) {
+    var node;
+    if (ReactTestUtils.isDOMComponent(domComponentOrNode)) {
+      node = domComponentOrNode.getDOMNode();
+    } else if (domComponentOrNode.tagName) {
+      node = domComponentOrNode;
+    }
+
+    var fakeNativeEvent = new Event();
+    fakeNativeEvent.target = node;
+    // We don't use SyntheticEvent.getPooled in order to not have to worry about
+    // properly destroying any properties assigned from `eventData` upon release
+    var event = new SyntheticEvent(
+      ReactBrowserEventEmitter.eventNameDispatchConfigs[eventType],
+      ReactMount.getID(node),
+      fakeNativeEvent
+    );
+    assign(event, eventData);
+    EventPropagators.accumulateTwoPhaseDispatches(event);
+
+    ReactUpdates.batchedUpdates(function() {
+      EventPluginHub.enqueueEvents(event);
+      EventPluginHub.processEventQueue();
+    });
+  };
+}
+
+function buildSimulators() {
+  ReactTestUtils.Simulate = {};
+
+  var eventType;
+  for (eventType in ReactBrowserEventEmitter.eventNameDispatchConfigs) {
+    /**
+     * @param {!Element || ReactDOMComponent} domComponentOrNode
+     * @param {?object} eventData Fake event data to use in SyntheticEvent.
+     */
+    ReactTestUtils.Simulate[eventType] = makeSimulator(eventType);
+  }
+}
+
+// Rebuild ReactTestUtils.Simulate whenever event plugins are injected
+var oldInjectEventPluginOrder = EventPluginHub.injection.injectEventPluginOrder;
+EventPluginHub.injection.injectEventPluginOrder = function() {
+  oldInjectEventPluginOrder.apply(this, arguments);
+  buildSimulators();
+};
+var oldInjectEventPlugins = EventPluginHub.injection.injectEventPluginsByName;
+EventPluginHub.injection.injectEventPluginsByName = function() {
+  oldInjectEventPlugins.apply(this, arguments);
+  buildSimulators();
+};
+
+buildSimulators();
+
+/**
+ * Exports:
+ *
+ * - `ReactTestUtils.SimulateNative.click(Element/ReactDOMComponent)`
+ * - `ReactTestUtils.SimulateNative.mouseMove(Element/ReactDOMComponent)`
+ * - `ReactTestUtils.SimulateNative.mouseIn/ReactDOMComponent)`
+ * - `ReactTestUtils.SimulateNative.mouseOut(Element/ReactDOMComponent)`
+ * - ... (All keys from `EventConstants.topLevelTypes`)
+ *
+ * Note: Top level event types are a subset of the entire set of handler types
+ * (which include a broader set of "synthetic" events). For example, onDragDone
+ * is a synthetic event. Except when testing an event plugin or React's event
+ * handling code specifically, you probably want to use ReactTestUtils.Simulate
+ * to dispatch synthetic events.
+ */
+
+function makeNativeSimulator(eventType) {
+  return function(domComponentOrNode, nativeEventData) {
+    var fakeNativeEvent = new Event(eventType);
+    assign(fakeNativeEvent, nativeEventData);
+    if (ReactTestUtils.isDOMComponent(domComponentOrNode)) {
+      ReactTestUtils.simulateNativeEventOnDOMComponent(
+        eventType,
+        domComponentOrNode,
+        fakeNativeEvent
+      );
+    } else if (!!domComponentOrNode.tagName) {
+      // Will allow on actual dom nodes.
+      ReactTestUtils.simulateNativeEventOnNode(
+        eventType,
+        domComponentOrNode,
+        fakeNativeEvent
+      );
+    }
+  };
+}
+
+var eventType;
+for (eventType in topLevelTypes) {
+  // Event type is stored as 'topClick' - we transform that to 'click'
+  var convenienceName = eventType.indexOf('top') === 0 ?
+    eventType.charAt(3).toLowerCase() + eventType.substr(4) : eventType;
+  /**
+   * @param {!Element || ReactDOMComponent} domComponentOrNode
+   * @param {?Event} nativeEventData Fake native event to use in SyntheticEvent.
+   */
+  ReactTestUtils.SimulateNative[convenienceName] =
+    makeNativeSimulator(eventType);
+}
+
+module.exports = ReactTestUtils;
+
+},{"./EventConstants":213,"./EventPluginHub":215,"./EventPropagators":218,"./Object.assign":226,"./React":228,"./ReactBrowserEventEmitter":230,"./ReactCompositeComponent":240,"./ReactElement":260,"./ReactEmptyComponent":262,"./ReactInstanceHandles":269,"./ReactInstanceMap":270,"./ReactMount":274,"./ReactUpdates":297,"./SyntheticEvent":306,"./emptyObject":328}],293:[function(require,module,exports){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @typechecks static-only
+ * @providesModule ReactTransitionChildMapping
+ */
+
+'use strict';
+
+var ReactChildren = require("./ReactChildren");
+var ReactFragment = require("./ReactFragment");
+
+var ReactTransitionChildMapping = {
+  /**
+   * Given `this.props.children`, return an object mapping key to child. Just
+   * simple syntactic sugar around ReactChildren.map().
+   *
+   * @param {*} children `this.props.children`
+   * @return {object} Mapping of key to child
+   */
+  getChildMapping: function(children) {
+    if (!children) {
+      return children;
+    }
+    return ReactFragment.extract(ReactChildren.map(children, function(child) {
+      return child;
+    }));
+  },
+
+  /**
+   * When you're adding or removing children some may be added or removed in the
+   * same render pass. We want to show *both* since we want to simultaneously
+   * animate elements in and out. This function takes a previous set of keys
+   * and a new set of keys and merges them with its best guess of the correct
+   * ordering. In the future we may expose some of the utilities in
+   * ReactMultiChild to make this easy, but for now React itself does not
+   * directly have this concept of the union of prevChildren and nextChildren
+   * so we implement it here.
+   *
+   * @param {object} prev prev children as returned from
+   * `ReactTransitionChildMapping.getChildMapping()`.
+   * @param {object} next next children as returned from
+   * `ReactTransitionChildMapping.getChildMapping()`.
+   * @return {object} a key set that contains all keys in `prev` and all keys
+   * in `next` in a reasonable order.
+   */
+  mergeChildMappings: function(prev, next) {
+    prev = prev || {};
+    next = next || {};
+
+    function getValueForKey(key) {
+      if (next.hasOwnProperty(key)) {
+        return next[key];
+      } else {
+        return prev[key];
+      }
+    }
+
+    // For each key of `next`, the list of keys to insert before that key in
+    // the combined list
+    var nextKeysPending = {};
+
+    var pendingKeys = [];
+    for (var prevKey in prev) {
+      if (next.hasOwnProperty(prevKey)) {
+        if (pendingKeys.length) {
+          nextKeysPending[prevKey] = pendingKeys;
+          pendingKeys = [];
+        }
+      } else {
+        pendingKeys.push(prevKey);
+      }
+    }
+
+    var i;
+    var childMapping = {};
+    for (var nextKey in next) {
+      if (nextKeysPending.hasOwnProperty(nextKey)) {
+        for (i = 0; i < nextKeysPending[nextKey].length; i++) {
+          var pendingNextKey = nextKeysPending[nextKey][i];
+          childMapping[nextKeysPending[nextKey][i]] = getValueForKey(
+            pendingNextKey
+          );
+        }
+      }
+      childMapping[nextKey] = getValueForKey(nextKey);
+    }
+
+    // Finally, add the keys which didn't appear before any key in `next`
+    for (i = 0; i < pendingKeys.length; i++) {
+      childMapping[pendingKeys[i]] = getValueForKey(pendingKeys[i]);
+    }
+
+    return childMapping;
+  }
+};
+
+module.exports = ReactTransitionChildMapping;
+
+},{"./ReactChildren":234,"./ReactFragment":266}],294:[function(require,module,exports){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule ReactTransitionEvents
+ */
+
+'use strict';
+
+var ExecutionEnvironment = require("./ExecutionEnvironment");
+
+/**
+ * EVENT_NAME_MAP is used to determine which event fired when a
+ * transition/animation ends, based on the style property used to
+ * define that event.
+ */
+var EVENT_NAME_MAP = {
+  transitionend: {
+    'transition': 'transitionend',
+    'WebkitTransition': 'webkitTransitionEnd',
+    'MozTransition': 'mozTransitionEnd',
+    'OTransition': 'oTransitionEnd',
+    'msTransition': 'MSTransitionEnd'
+  },
+
+  animationend: {
+    'animation': 'animationend',
+    'WebkitAnimation': 'webkitAnimationEnd',
+    'MozAnimation': 'mozAnimationEnd',
+    'OAnimation': 'oAnimationEnd',
+    'msAnimation': 'MSAnimationEnd'
+  }
+};
+
+var endEvents = [];
+
+function detectEvents() {
+  var testEl = document.createElement('div');
+  var style = testEl.style;
+
+  // On some platforms, in particular some releases of Android 4.x,
+  // the un-prefixed "animation" and "transition" properties are defined on the
+  // style object but the events that fire will still be prefixed, so we need
+  // to check if the un-prefixed events are useable, and if not remove them
+  // from the map
+  if (!('AnimationEvent' in window)) {
+    delete EVENT_NAME_MAP.animationend.animation;
+  }
+
+  if (!('TransitionEvent' in window)) {
+    delete EVENT_NAME_MAP.transitionend.transition;
+  }
+
+  for (var baseEventName in EVENT_NAME_MAP) {
+    var baseEvents = EVENT_NAME_MAP[baseEventName];
+    for (var styleName in baseEvents) {
+      if (styleName in style) {
+        endEvents.push(baseEvents[styleName]);
+        break;
+      }
+    }
+  }
+}
+
+if (ExecutionEnvironment.canUseDOM) {
+  detectEvents();
+}
+
+// We use the raw {add|remove}EventListener() call because EventListener
+// does not know how to remove event listeners and we really should
+// clean up. Also, these events are not triggered in older browsers
+// so we should be A-OK here.
+
+function addEventListener(node, eventName, eventListener) {
+  node.addEventListener(eventName, eventListener, false);
+}
+
+function removeEventListener(node, eventName, eventListener) {
+  node.removeEventListener(eventName, eventListener, false);
+}
+
+var ReactTransitionEvents = {
+  addEndEventListener: function(node, eventListener) {
+    if (endEvents.length === 0) {
+      // If CSS transitions are not supported, trigger an "end animation"
+      // event immediately.
+      window.setTimeout(eventListener, 0);
+      return;
+    }
+    endEvents.forEach(function(endEvent) {
+      addEventListener(node, endEvent, eventListener);
+    });
+  },
+
+  removeEndEventListener: function(node, eventListener) {
+    if (endEvents.length === 0) {
+      return;
+    }
+    endEvents.forEach(function(endEvent) {
+      removeEventListener(node, endEvent, eventListener);
+    });
+  }
+};
+
+module.exports = ReactTransitionEvents;
+
+},{"./ExecutionEnvironment":219}],295:[function(require,module,exports){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule ReactTransitionGroup
+ */
+
+'use strict';
+
+var React = require("./React");
+var ReactTransitionChildMapping = require("./ReactTransitionChildMapping");
+
+var assign = require("./Object.assign");
+var cloneWithProps = require("./cloneWithProps");
+var emptyFunction = require("./emptyFunction");
+
+var ReactTransitionGroup = React.createClass({
+  displayName: 'ReactTransitionGroup',
+
+  propTypes: {
+    component: React.PropTypes.any,
+    childFactory: React.PropTypes.func
+  },
+
+  getDefaultProps: function() {
+    return {
+      component: 'span',
+      childFactory: emptyFunction.thatReturnsArgument
+    };
+  },
+
+  getInitialState: function() {
+    return {
+      children: ReactTransitionChildMapping.getChildMapping(this.props.children)
+    };
+  },
+
+  componentWillMount: function() {
+    this.currentlyTransitioningKeys = {};
+    this.keysToEnter = [];
+    this.keysToLeave = [];
+  },
+
+  componentDidMount: function() {
+    var initialChildMapping = this.state.children;
+    for (var key in initialChildMapping) {
+      if (initialChildMapping[key]) {
+        this.performAppear(key);
+      }
+    }
+  },
+
+  componentWillReceiveProps: function(nextProps) {
+    var nextChildMapping = ReactTransitionChildMapping.getChildMapping(
+      nextProps.children
+    );
+    var prevChildMapping = this.state.children;
+
+    this.setState({
+      children: ReactTransitionChildMapping.mergeChildMappings(
+        prevChildMapping,
+        nextChildMapping
+      )
+    });
+
+    var key;
+
+    for (key in nextChildMapping) {
+      var hasPrev = prevChildMapping && prevChildMapping.hasOwnProperty(key);
+      if (nextChildMapping[key] && !hasPrev &&
+          !this.currentlyTransitioningKeys[key]) {
+        this.keysToEnter.push(key);
+      }
+    }
+
+    for (key in prevChildMapping) {
+      var hasNext = nextChildMapping && nextChildMapping.hasOwnProperty(key);
+      if (prevChildMapping[key] && !hasNext &&
+          !this.currentlyTransitioningKeys[key]) {
+        this.keysToLeave.push(key);
+      }
+    }
+
+    // If we want to someday check for reordering, we could do it here.
+  },
+
+  componentDidUpdate: function() {
+    var keysToEnter = this.keysToEnter;
+    this.keysToEnter = [];
+    keysToEnter.forEach(this.performEnter);
+
+    var keysToLeave = this.keysToLeave;
+    this.keysToLeave = [];
+    keysToLeave.forEach(this.performLeave);
+  },
+
+  performAppear: function(key) {
+    this.currentlyTransitioningKeys[key] = true;
+
+    var component = this.refs[key];
+
+    if (component.componentWillAppear) {
+      component.componentWillAppear(
+        this._handleDoneAppearing.bind(this, key)
+      );
+    } else {
+      this._handleDoneAppearing(key);
+    }
+  },
+
+  _handleDoneAppearing: function(key) {
+    var component = this.refs[key];
+    if (component.componentDidAppear) {
+      component.componentDidAppear();
+    }
+
+    delete this.currentlyTransitioningKeys[key];
+
+    var currentChildMapping = ReactTransitionChildMapping.getChildMapping(
+      this.props.children
+    );
+
+    if (!currentChildMapping || !currentChildMapping.hasOwnProperty(key)) {
+      // This was removed before it had fully appeared. Remove it.
+      this.performLeave(key);
+    }
+  },
+
+  performEnter: function(key) {
+    this.currentlyTransitioningKeys[key] = true;
+
+    var component = this.refs[key];
+
+    if (component.componentWillEnter) {
+      component.componentWillEnter(
+        this._handleDoneEntering.bind(this, key)
+      );
+    } else {
+      this._handleDoneEntering(key);
+    }
+  },
+
+  _handleDoneEntering: function(key) {
+    var component = this.refs[key];
+    if (component.componentDidEnter) {
+      component.componentDidEnter();
+    }
+
+    delete this.currentlyTransitioningKeys[key];
+
+    var currentChildMapping = ReactTransitionChildMapping.getChildMapping(
+      this.props.children
+    );
+
+    if (!currentChildMapping || !currentChildMapping.hasOwnProperty(key)) {
+      // This was removed before it had fully entered. Remove it.
+      this.performLeave(key);
+    }
+  },
+
+  performLeave: function(key) {
+    this.currentlyTransitioningKeys[key] = true;
+
+    var component = this.refs[key];
+    if (component.componentWillLeave) {
+      component.componentWillLeave(this._handleDoneLeaving.bind(this, key));
+    } else {
+      // Note that this is somewhat dangerous b/c it calls setState()
+      // again, effectively mutating the component before all the work
+      // is done.
+      this._handleDoneLeaving(key);
+    }
+  },
+
+  _handleDoneLeaving: function(key) {
+    var component = this.refs[key];
+
+    if (component.componentDidLeave) {
+      component.componentDidLeave();
+    }
+
+    delete this.currentlyTransitioningKeys[key];
+
+    var currentChildMapping = ReactTransitionChildMapping.getChildMapping(
+      this.props.children
+    );
+
+    if (currentChildMapping && currentChildMapping.hasOwnProperty(key)) {
+      // This entered again before it fully left. Add it again.
+      this.performEnter(key);
+    } else {
+      var newChildren = assign({}, this.state.children);
+      delete newChildren[key];
+      this.setState({children: newChildren});
+    }
+  },
+
+  render: function() {
+    // TODO: we could get rid of the need for the wrapper node
+    // by cloning a single child
+    var childrenToRender = [];
+    for (var key in this.state.children) {
+      var child = this.state.children[key];
+      if (child) {
+        // You may need to apply reactive updates to a child as it is leaving.
+        // The normal React way to do it won't work since the child will have
+        // already been removed. In case you need this behavior you can provide
+        // a childFactory function to wrap every child, even the ones that are
+        // leaving.
+        childrenToRender.push(cloneWithProps(
+          this.props.childFactory(child),
+          {ref: key, key: key}
+        ));
+      }
+    }
+    return React.createElement(
+      this.props.component,
+      this.props,
+      childrenToRender
+    );
+  }
+});
+
+module.exports = ReactTransitionGroup;
+
+},{"./Object.assign":226,"./React":228,"./ReactTransitionChildMapping":293,"./cloneWithProps":320,"./emptyFunction":327}],296:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2015, Facebook, Inc.
@@ -50831,7 +56268,7 @@ var ReactUpdateQueue = {
 module.exports = ReactUpdateQueue;
 
 }).call(this,require('_process'))
-},{"./Object.assign":220,"./ReactCurrentOwner":233,"./ReactElement":251,"./ReactInstanceMap":261,"./ReactLifeCycle":262,"./ReactUpdates":281,"./invariant":329,"./warning":348,"_process":6}],281:[function(require,module,exports){
+},{"./Object.assign":226,"./ReactCurrentOwner":242,"./ReactElement":260,"./ReactInstanceMap":270,"./ReactLifeCycle":271,"./ReactUpdates":297,"./invariant":348,"./warning":369,"_process":9}],297:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -51113,7 +56550,63 @@ var ReactUpdates = {
 module.exports = ReactUpdates;
 
 }).call(this,require('_process'))
-},{"./CallbackQueue":199,"./Object.assign":220,"./PooledClass":221,"./ReactCurrentOwner":233,"./ReactPerf":269,"./ReactReconciler":275,"./Transaction":297,"./invariant":329,"./warning":348,"_process":6}],282:[function(require,module,exports){
+},{"./CallbackQueue":204,"./Object.assign":226,"./PooledClass":227,"./ReactCurrentOwner":242,"./ReactPerf":279,"./ReactReconciler":286,"./Transaction":314,"./invariant":348,"./warning":369,"_process":9}],298:[function(require,module,exports){
+(function (process){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule ReactWithAddons
+ */
+
+/**
+ * This module exists purely in the open source project, and is meant as a way
+ * to create a separate standalone build of React. This build has "addons", or
+ * functionality we've built and think might be useful but doesn't have a good
+ * place to live inside React core.
+ */
+
+'use strict';
+
+var LinkedStateMixin = require("./LinkedStateMixin");
+var React = require("./React");
+var ReactComponentWithPureRenderMixin =
+  require("./ReactComponentWithPureRenderMixin");
+var ReactCSSTransitionGroup = require("./ReactCSSTransitionGroup");
+var ReactFragment = require("./ReactFragment");
+var ReactTransitionGroup = require("./ReactTransitionGroup");
+var ReactUpdates = require("./ReactUpdates");
+
+var cx = require("./cx");
+var cloneWithProps = require("./cloneWithProps");
+var update = require("./update");
+
+React.addons = {
+  CSSTransitionGroup: ReactCSSTransitionGroup,
+  LinkedStateMixin: LinkedStateMixin,
+  PureRenderMixin: ReactComponentWithPureRenderMixin,
+  TransitionGroup: ReactTransitionGroup,
+
+  batchedUpdates: ReactUpdates.batchedUpdates,
+  classSet: cx,
+  cloneWithProps: cloneWithProps,
+  createFragment: ReactFragment.create,
+  update: update
+};
+
+if ("production" !== process.env.NODE_ENV) {
+  React.addons.Perf = require("./ReactDefaultPerf");
+  React.addons.TestUtils = require("./ReactTestUtils");
+}
+
+module.exports = React;
+
+}).call(this,require('_process'))
+},{"./LinkedStateMixin":222,"./React":228,"./ReactCSSTransitionGroup":231,"./ReactComponentWithPureRenderMixin":239,"./ReactDefaultPerf":258,"./ReactFragment":266,"./ReactTestUtils":292,"./ReactTransitionGroup":295,"./ReactUpdates":297,"./cloneWithProps":320,"./cx":325,"./update":368,"_process":9}],299:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -51207,7 +56700,7 @@ var SVGDOMPropertyConfig = {
 
 module.exports = SVGDOMPropertyConfig;
 
-},{"./DOMProperty":203}],283:[function(require,module,exports){
+},{"./DOMProperty":208}],300:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -51402,7 +56895,7 @@ var SelectEventPlugin = {
 
 module.exports = SelectEventPlugin;
 
-},{"./EventConstants":208,"./EventPropagators":213,"./ReactInputSelection":259,"./SyntheticEvent":289,"./getActiveElement":315,"./isTextInputElement":332,"./keyOf":335,"./shallowEqual":344}],284:[function(require,module,exports){
+},{"./EventConstants":213,"./EventPropagators":218,"./ReactInputSelection":268,"./SyntheticEvent":306,"./getActiveElement":334,"./isTextInputElement":351,"./keyOf":355,"./shallowEqual":364}],301:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -51433,7 +56926,7 @@ var ServerReactRootIndex = {
 
 module.exports = ServerReactRootIndex;
 
-},{}],285:[function(require,module,exports){
+},{}],302:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -51861,7 +57354,7 @@ var SimpleEventPlugin = {
 module.exports = SimpleEventPlugin;
 
 }).call(this,require('_process'))
-},{"./EventConstants":208,"./EventPluginUtils":212,"./EventPropagators":213,"./SyntheticClipboardEvent":286,"./SyntheticDragEvent":288,"./SyntheticEvent":289,"./SyntheticFocusEvent":290,"./SyntheticKeyboardEvent":292,"./SyntheticMouseEvent":293,"./SyntheticTouchEvent":294,"./SyntheticUIEvent":295,"./SyntheticWheelEvent":296,"./getEventCharCode":316,"./invariant":329,"./keyOf":335,"./warning":348,"_process":6}],286:[function(require,module,exports){
+},{"./EventConstants":213,"./EventPluginUtils":217,"./EventPropagators":218,"./SyntheticClipboardEvent":303,"./SyntheticDragEvent":305,"./SyntheticEvent":306,"./SyntheticFocusEvent":307,"./SyntheticKeyboardEvent":309,"./SyntheticMouseEvent":310,"./SyntheticTouchEvent":311,"./SyntheticUIEvent":312,"./SyntheticWheelEvent":313,"./getEventCharCode":335,"./invariant":348,"./keyOf":355,"./warning":369,"_process":9}],303:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -51906,7 +57399,7 @@ SyntheticEvent.augmentClass(SyntheticClipboardEvent, ClipboardEventInterface);
 
 module.exports = SyntheticClipboardEvent;
 
-},{"./SyntheticEvent":289}],287:[function(require,module,exports){
+},{"./SyntheticEvent":306}],304:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -51951,7 +57444,7 @@ SyntheticEvent.augmentClass(
 
 module.exports = SyntheticCompositionEvent;
 
-},{"./SyntheticEvent":289}],288:[function(require,module,exports){
+},{"./SyntheticEvent":306}],305:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -51990,7 +57483,7 @@ SyntheticMouseEvent.augmentClass(SyntheticDragEvent, DragEventInterface);
 
 module.exports = SyntheticDragEvent;
 
-},{"./SyntheticMouseEvent":293}],289:[function(require,module,exports){
+},{"./SyntheticMouseEvent":310}],306:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -52156,7 +57649,7 @@ PooledClass.addPoolingTo(SyntheticEvent, PooledClass.threeArgumentPooler);
 
 module.exports = SyntheticEvent;
 
-},{"./Object.assign":220,"./PooledClass":221,"./emptyFunction":308,"./getEventTarget":319}],290:[function(require,module,exports){
+},{"./Object.assign":226,"./PooledClass":227,"./emptyFunction":327,"./getEventTarget":338}],307:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -52195,7 +57688,7 @@ SyntheticUIEvent.augmentClass(SyntheticFocusEvent, FocusEventInterface);
 
 module.exports = SyntheticFocusEvent;
 
-},{"./SyntheticUIEvent":295}],291:[function(require,module,exports){
+},{"./SyntheticUIEvent":312}],308:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -52241,7 +57734,7 @@ SyntheticEvent.augmentClass(
 
 module.exports = SyntheticInputEvent;
 
-},{"./SyntheticEvent":289}],292:[function(require,module,exports){
+},{"./SyntheticEvent":306}],309:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -52328,7 +57821,7 @@ SyntheticUIEvent.augmentClass(SyntheticKeyboardEvent, KeyboardEventInterface);
 
 module.exports = SyntheticKeyboardEvent;
 
-},{"./SyntheticUIEvent":295,"./getEventCharCode":316,"./getEventKey":317,"./getEventModifierState":318}],293:[function(require,module,exports){
+},{"./SyntheticUIEvent":312,"./getEventCharCode":335,"./getEventKey":336,"./getEventModifierState":337}],310:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -52409,7 +57902,7 @@ SyntheticUIEvent.augmentClass(SyntheticMouseEvent, MouseEventInterface);
 
 module.exports = SyntheticMouseEvent;
 
-},{"./SyntheticUIEvent":295,"./ViewportMetrics":298,"./getEventModifierState":318}],294:[function(require,module,exports){
+},{"./SyntheticUIEvent":312,"./ViewportMetrics":315,"./getEventModifierState":337}],311:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -52457,7 +57950,7 @@ SyntheticUIEvent.augmentClass(SyntheticTouchEvent, TouchEventInterface);
 
 module.exports = SyntheticTouchEvent;
 
-},{"./SyntheticUIEvent":295,"./getEventModifierState":318}],295:[function(require,module,exports){
+},{"./SyntheticUIEvent":312,"./getEventModifierState":337}],312:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -52519,7 +58012,7 @@ SyntheticEvent.augmentClass(SyntheticUIEvent, UIEventInterface);
 
 module.exports = SyntheticUIEvent;
 
-},{"./SyntheticEvent":289,"./getEventTarget":319}],296:[function(require,module,exports){
+},{"./SyntheticEvent":306,"./getEventTarget":338}],313:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -52580,7 +58073,7 @@ SyntheticMouseEvent.augmentClass(SyntheticWheelEvent, WheelEventInterface);
 
 module.exports = SyntheticWheelEvent;
 
-},{"./SyntheticMouseEvent":293}],297:[function(require,module,exports){
+},{"./SyntheticMouseEvent":310}],314:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -52821,7 +58314,7 @@ var Transaction = {
 module.exports = Transaction;
 
 }).call(this,require('_process'))
-},{"./invariant":329,"_process":6}],298:[function(require,module,exports){
+},{"./invariant":348,"_process":9}],315:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -52850,7 +58343,7 @@ var ViewportMetrics = {
 
 module.exports = ViewportMetrics;
 
-},{}],299:[function(require,module,exports){
+},{}],316:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -52916,7 +58409,7 @@ function accumulateInto(current, next) {
 module.exports = accumulateInto;
 
 }).call(this,require('_process'))
-},{"./invariant":329,"_process":6}],300:[function(require,module,exports){
+},{"./invariant":348,"_process":9}],317:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -52950,7 +58443,7 @@ function adler32(data) {
 
 module.exports = adler32;
 
-},{}],301:[function(require,module,exports){
+},{}],318:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -52982,7 +58475,7 @@ function camelize(string) {
 
 module.exports = camelize;
 
-},{}],302:[function(require,module,exports){
+},{}],319:[function(require,module,exports){
 /**
  * Copyright 2014-2015, Facebook, Inc.
  * All rights reserved.
@@ -53024,7 +58517,66 @@ function camelizeStyleName(string) {
 
 module.exports = camelizeStyleName;
 
-},{"./camelize":301}],303:[function(require,module,exports){
+},{"./camelize":318}],320:[function(require,module,exports){
+(function (process){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @typechecks static-only
+ * @providesModule cloneWithProps
+ */
+
+'use strict';
+
+var ReactElement = require("./ReactElement");
+var ReactPropTransferer = require("./ReactPropTransferer");
+
+var keyOf = require("./keyOf");
+var warning = require("./warning");
+
+var CHILDREN_PROP = keyOf({children: null});
+
+/**
+ * Sometimes you want to change the props of a child passed to you. Usually
+ * this is to add a CSS class.
+ *
+ * @param {ReactElement} child child element you'd like to clone
+ * @param {object} props props you'd like to modify. className and style will be
+ * merged automatically.
+ * @return {ReactElement} a clone of child with props merged in.
+ */
+function cloneWithProps(child, props) {
+  if ("production" !== process.env.NODE_ENV) {
+    ("production" !== process.env.NODE_ENV ? warning(
+      !child.ref,
+      'You are calling cloneWithProps() on a child with a ref. This is ' +
+      'dangerous because you\'re creating a new child which will not be ' +
+      'added as a ref to its parent.'
+    ) : null);
+  }
+
+  var newProps = ReactPropTransferer.mergeProps(props, child.props);
+
+  // Use `child.props.children` if it is provided.
+  if (!newProps.hasOwnProperty(CHILDREN_PROP) &&
+      child.props.hasOwnProperty(CHILDREN_PROP)) {
+    newProps.children = child.props.children;
+  }
+
+  // The current API doesn't retain _owner and _context, which is why this
+  // doesn't use ReactElement.cloneAndReplaceProps.
+  return ReactElement.createElement(child.type, newProps);
+}
+
+module.exports = cloneWithProps;
+
+}).call(this,require('_process'))
+},{"./ReactElement":260,"./ReactPropTransferer":280,"./keyOf":355,"./warning":369,"_process":9}],321:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -53068,7 +58620,7 @@ function containsNode(outerNode, innerNode) {
 
 module.exports = containsNode;
 
-},{"./isTextNode":333}],304:[function(require,module,exports){
+},{"./isTextNode":352}],322:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -53154,7 +58706,7 @@ function createArrayFromMixed(obj) {
 
 module.exports = createArrayFromMixed;
 
-},{"./toArray":346}],305:[function(require,module,exports){
+},{"./toArray":366}],323:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -53216,7 +58768,7 @@ function createFullPageComponent(tag) {
 module.exports = createFullPageComponent;
 
 }).call(this,require('_process'))
-},{"./ReactClass":227,"./ReactElement":251,"./invariant":329,"_process":6}],306:[function(require,module,exports){
+},{"./ReactClass":235,"./ReactElement":260,"./invariant":348,"_process":9}],324:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -53306,7 +58858,63 @@ function createNodesFromMarkup(markup, handleScript) {
 module.exports = createNodesFromMarkup;
 
 }).call(this,require('_process'))
-},{"./ExecutionEnvironment":214,"./createArrayFromMixed":304,"./getMarkupWrap":321,"./invariant":329,"_process":6}],307:[function(require,module,exports){
+},{"./ExecutionEnvironment":219,"./createArrayFromMixed":322,"./getMarkupWrap":340,"./invariant":348,"_process":9}],325:[function(require,module,exports){
+(function (process){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule cx
+ */
+
+/**
+ * This function is used to mark string literals representing CSS class names
+ * so that they can be transformed statically. This allows for modularization
+ * and minification of CSS class names.
+ *
+ * In static_upstream, this function is actually implemented, but it should
+ * eventually be replaced with something more descriptive, and the transform
+ * that is used in the main stack should be ported for use elsewhere.
+ *
+ * @param string|object className to modularize, or an object of key/values.
+ *                      In the object case, the values are conditions that
+ *                      determine if the className keys should be included.
+ * @param [string ...]  Variable list of classNames in the string case.
+ * @return string       Renderable space-separated CSS className.
+ */
+
+'use strict';
+var warning = require("./warning");
+
+var warned = false;
+
+function cx(classNames) {
+  if ("production" !== process.env.NODE_ENV) {
+    ("production" !== process.env.NODE_ENV ? warning(
+      warned,
+      'React.addons.classSet will be deprecated in a future version. See ' +
+      'http://fb.me/react-addons-classset'
+    ) : null);
+    warned = true;
+  }
+
+  if (typeof classNames == 'object') {
+    return Object.keys(classNames).filter(function(className) {
+      return classNames[className];
+    }).join(' ');
+  } else {
+    return Array.prototype.join.call(arguments, ' ');
+  }
+}
+
+module.exports = cx;
+
+}).call(this,require('_process'))
+},{"./warning":369,"_process":9}],326:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -53364,7 +58972,7 @@ function dangerousStyleValue(name, value) {
 
 module.exports = dangerousStyleValue;
 
-},{"./CSSProperty":197}],308:[function(require,module,exports){
+},{"./CSSProperty":202}],327:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -53398,7 +59006,7 @@ emptyFunction.thatReturnsArgument = function(arg) { return arg; };
 
 module.exports = emptyFunction;
 
-},{}],309:[function(require,module,exports){
+},{}],328:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -53422,7 +59030,7 @@ if ("production" !== process.env.NODE_ENV) {
 module.exports = emptyObject;
 
 }).call(this,require('_process'))
-},{"_process":6}],310:[function(require,module,exports){
+},{"_process":9}],329:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -53462,7 +59070,7 @@ function escapeTextContentForBrowser(text) {
 
 module.exports = escapeTextContentForBrowser;
 
-},{}],311:[function(require,module,exports){
+},{}],330:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -53535,7 +59143,7 @@ function findDOMNode(componentOrElement) {
 module.exports = findDOMNode;
 
 }).call(this,require('_process'))
-},{"./ReactCurrentOwner":233,"./ReactInstanceMap":261,"./ReactMount":264,"./invariant":329,"./isNode":331,"./warning":348,"_process":6}],312:[function(require,module,exports){
+},{"./ReactCurrentOwner":242,"./ReactInstanceMap":270,"./ReactMount":274,"./invariant":348,"./isNode":350,"./warning":369,"_process":9}],331:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -53593,7 +59201,7 @@ function flattenChildren(children) {
 module.exports = flattenChildren;
 
 }).call(this,require('_process'))
-},{"./traverseAllChildren":347,"./warning":348,"_process":6}],313:[function(require,module,exports){
+},{"./traverseAllChildren":367,"./warning":369,"_process":9}],332:[function(require,module,exports){
 /**
  * Copyright 2014-2015, Facebook, Inc.
  * All rights reserved.
@@ -53622,7 +59230,7 @@ function focusNode(node) {
 
 module.exports = focusNode;
 
-},{}],314:[function(require,module,exports){
+},{}],333:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -53653,7 +59261,7 @@ var forEachAccumulated = function(arr, cb, scope) {
 
 module.exports = forEachAccumulated;
 
-},{}],315:[function(require,module,exports){
+},{}],334:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -53682,7 +59290,7 @@ function getActiveElement() /*?DOMElement*/ {
 
 module.exports = getActiveElement;
 
-},{}],316:[function(require,module,exports){
+},{}],335:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -53734,7 +59342,7 @@ function getEventCharCode(nativeEvent) {
 
 module.exports = getEventCharCode;
 
-},{}],317:[function(require,module,exports){
+},{}],336:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -53839,7 +59447,7 @@ function getEventKey(nativeEvent) {
 
 module.exports = getEventKey;
 
-},{"./getEventCharCode":316}],318:[function(require,module,exports){
+},{"./getEventCharCode":335}],337:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -53886,7 +59494,7 @@ function getEventModifierState(nativeEvent) {
 
 module.exports = getEventModifierState;
 
-},{}],319:[function(require,module,exports){
+},{}],338:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -53917,7 +59525,7 @@ function getEventTarget(nativeEvent) {
 
 module.exports = getEventTarget;
 
-},{}],320:[function(require,module,exports){
+},{}],339:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -53961,7 +59569,7 @@ function getIteratorFn(maybeIterable) {
 
 module.exports = getIteratorFn;
 
-},{}],321:[function(require,module,exports){
+},{}],340:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -54080,7 +59688,7 @@ function getMarkupWrap(nodeName) {
 module.exports = getMarkupWrap;
 
 }).call(this,require('_process'))
-},{"./ExecutionEnvironment":214,"./invariant":329,"_process":6}],322:[function(require,module,exports){
+},{"./ExecutionEnvironment":219,"./invariant":348,"_process":9}],341:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -54155,7 +59763,7 @@ function getNodeForCharacterOffset(root, offset) {
 
 module.exports = getNodeForCharacterOffset;
 
-},{}],323:[function(require,module,exports){
+},{}],342:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -54190,7 +59798,7 @@ function getReactRootElementInContainer(container) {
 
 module.exports = getReactRootElementInContainer;
 
-},{}],324:[function(require,module,exports){
+},{}],343:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -54227,7 +59835,7 @@ function getTextContentAccessor() {
 
 module.exports = getTextContentAccessor;
 
-},{"./ExecutionEnvironment":214}],325:[function(require,module,exports){
+},{"./ExecutionEnvironment":219}],344:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -54267,7 +59875,7 @@ function getUnboundedScrollPosition(scrollable) {
 
 module.exports = getUnboundedScrollPosition;
 
-},{}],326:[function(require,module,exports){
+},{}],345:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -54300,7 +59908,7 @@ function hyphenate(string) {
 
 module.exports = hyphenate;
 
-},{}],327:[function(require,module,exports){
+},{}],346:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -54341,7 +59949,7 @@ function hyphenateStyleName(string) {
 
 module.exports = hyphenateStyleName;
 
-},{"./hyphenate":326}],328:[function(require,module,exports){
+},{"./hyphenate":345}],347:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -54479,7 +60087,7 @@ function instantiateReactComponent(node, parentCompositeType) {
 module.exports = instantiateReactComponent;
 
 }).call(this,require('_process'))
-},{"./Object.assign":220,"./ReactCompositeComponent":231,"./ReactEmptyComponent":253,"./ReactNativeComponent":267,"./invariant":329,"./warning":348,"_process":6}],329:[function(require,module,exports){
+},{"./Object.assign":226,"./ReactCompositeComponent":240,"./ReactEmptyComponent":262,"./ReactNativeComponent":277,"./invariant":348,"./warning":369,"_process":9}],348:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -54536,7 +60144,7 @@ var invariant = function(condition, format, a, b, c, d, e, f) {
 module.exports = invariant;
 
 }).call(this,require('_process'))
-},{"_process":6}],330:[function(require,module,exports){
+},{"_process":9}],349:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -54601,7 +60209,7 @@ function isEventSupported(eventNameSuffix, capture) {
 
 module.exports = isEventSupported;
 
-},{"./ExecutionEnvironment":214}],331:[function(require,module,exports){
+},{"./ExecutionEnvironment":219}],350:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -54628,7 +60236,7 @@ function isNode(object) {
 
 module.exports = isNode;
 
-},{}],332:[function(require,module,exports){
+},{}],351:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -54671,7 +60279,7 @@ function isTextInputElement(elem) {
 
 module.exports = isTextInputElement;
 
-},{}],333:[function(require,module,exports){
+},{}],352:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -54696,7 +60304,48 @@ function isTextNode(object) {
 
 module.exports = isTextNode;
 
-},{"./isNode":331}],334:[function(require,module,exports){
+},{"./isNode":350}],353:[function(require,module,exports){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule joinClasses
+ * @typechecks static-only
+ */
+
+'use strict';
+
+/**
+ * Combines multiple className strings into one.
+ * http://jsperf.com/joinclasses-args-vs-array
+ *
+ * @param {...?string} classes
+ * @return {string}
+ */
+function joinClasses(className/*, ... */) {
+  if (!className) {
+    className = '';
+  }
+  var nextClass;
+  var argLength = arguments.length;
+  if (argLength > 1) {
+    for (var ii = 1; ii < argLength; ii++) {
+      nextClass = arguments[ii];
+      if (nextClass) {
+        className = (className ? className + ' ' : '') + nextClass;
+      }
+    }
+  }
+  return className;
+}
+
+module.exports = joinClasses;
+
+},{}],354:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -54751,7 +60400,7 @@ var keyMirror = function(obj) {
 module.exports = keyMirror;
 
 }).call(this,require('_process'))
-},{"./invariant":329,"_process":6}],335:[function(require,module,exports){
+},{"./invariant":348,"_process":9}],355:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -54787,7 +60436,7 @@ var keyOf = function(oneKeyObj) {
 
 module.exports = keyOf;
 
-},{}],336:[function(require,module,exports){
+},{}],356:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -54840,7 +60489,7 @@ function mapObject(object, callback, context) {
 
 module.exports = mapObject;
 
-},{}],337:[function(require,module,exports){
+},{}],357:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -54873,7 +60522,7 @@ function memoizeStringOnly(callback) {
 
 module.exports = memoizeStringOnly;
 
-},{}],338:[function(require,module,exports){
+},{}],358:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -54913,7 +60562,7 @@ function onlyChild(children) {
 module.exports = onlyChild;
 
 }).call(this,require('_process'))
-},{"./ReactElement":251,"./invariant":329,"_process":6}],339:[function(require,module,exports){
+},{"./ReactElement":260,"./invariant":348,"_process":9}],359:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -54941,7 +60590,7 @@ if (ExecutionEnvironment.canUseDOM) {
 
 module.exports = performance || {};
 
-},{"./ExecutionEnvironment":214}],340:[function(require,module,exports){
+},{"./ExecutionEnvironment":219}],360:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -54969,7 +60618,7 @@ var performanceNow = performance.now.bind(performance);
 
 module.exports = performanceNow;
 
-},{"./performance":339}],341:[function(require,module,exports){
+},{"./performance":359}],361:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -54997,7 +60646,7 @@ function quoteAttributeValueForBrowser(value) {
 
 module.exports = quoteAttributeValueForBrowser;
 
-},{"./escapeTextContentForBrowser":310}],342:[function(require,module,exports){
+},{"./escapeTextContentForBrowser":329}],362:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -55086,7 +60735,7 @@ if (ExecutionEnvironment.canUseDOM) {
 
 module.exports = setInnerHTML;
 
-},{"./ExecutionEnvironment":214}],343:[function(require,module,exports){
+},{"./ExecutionEnvironment":219}],363:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -55128,7 +60777,7 @@ if (ExecutionEnvironment.canUseDOM) {
 
 module.exports = setTextContent;
 
-},{"./ExecutionEnvironment":214,"./escapeTextContentForBrowser":310,"./setInnerHTML":342}],344:[function(require,module,exports){
+},{"./ExecutionEnvironment":219,"./escapeTextContentForBrowser":329,"./setInnerHTML":362}],364:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -55172,7 +60821,7 @@ function shallowEqual(objA, objB) {
 
 module.exports = shallowEqual;
 
-},{}],345:[function(require,module,exports){
+},{}],365:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -55276,7 +60925,7 @@ function shouldUpdateReactComponent(prevElement, nextElement) {
 module.exports = shouldUpdateReactComponent;
 
 }).call(this,require('_process'))
-},{"./warning":348,"_process":6}],346:[function(require,module,exports){
+},{"./warning":369,"_process":9}],366:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -55348,7 +60997,7 @@ function toArray(obj) {
 module.exports = toArray;
 
 }).call(this,require('_process'))
-},{"./invariant":329,"_process":6}],347:[function(require,module,exports){
+},{"./invariant":348,"_process":9}],367:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -55601,7 +61250,178 @@ function traverseAllChildren(children, callback, traverseContext) {
 module.exports = traverseAllChildren;
 
 }).call(this,require('_process'))
-},{"./ReactElement":251,"./ReactFragment":257,"./ReactInstanceHandles":260,"./getIteratorFn":320,"./invariant":329,"./warning":348,"_process":6}],348:[function(require,module,exports){
+},{"./ReactElement":260,"./ReactFragment":266,"./ReactInstanceHandles":269,"./getIteratorFn":339,"./invariant":348,"./warning":369,"_process":9}],368:[function(require,module,exports){
+(function (process){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule update
+ */
+
+ /* global hasOwnProperty:true */
+
+'use strict';
+
+var assign = require("./Object.assign");
+var keyOf = require("./keyOf");
+var invariant = require("./invariant");
+var hasOwnProperty = {}.hasOwnProperty;
+
+function shallowCopy(x) {
+  if (Array.isArray(x)) {
+    return x.concat();
+  } else if (x && typeof x === 'object') {
+    return assign(new x.constructor(), x);
+  } else {
+    return x;
+  }
+}
+
+var COMMAND_PUSH = keyOf({$push: null});
+var COMMAND_UNSHIFT = keyOf({$unshift: null});
+var COMMAND_SPLICE = keyOf({$splice: null});
+var COMMAND_SET = keyOf({$set: null});
+var COMMAND_MERGE = keyOf({$merge: null});
+var COMMAND_APPLY = keyOf({$apply: null});
+
+var ALL_COMMANDS_LIST = [
+  COMMAND_PUSH,
+  COMMAND_UNSHIFT,
+  COMMAND_SPLICE,
+  COMMAND_SET,
+  COMMAND_MERGE,
+  COMMAND_APPLY
+];
+
+var ALL_COMMANDS_SET = {};
+
+ALL_COMMANDS_LIST.forEach(function(command) {
+  ALL_COMMANDS_SET[command] = true;
+});
+
+function invariantArrayCase(value, spec, command) {
+  ("production" !== process.env.NODE_ENV ? invariant(
+    Array.isArray(value),
+    'update(): expected target of %s to be an array; got %s.',
+    command,
+    value
+  ) : invariant(Array.isArray(value)));
+  var specValue = spec[command];
+  ("production" !== process.env.NODE_ENV ? invariant(
+    Array.isArray(specValue),
+    'update(): expected spec of %s to be an array; got %s. ' +
+    'Did you forget to wrap your parameter in an array?',
+    command,
+    specValue
+  ) : invariant(Array.isArray(specValue)));
+}
+
+function update(value, spec) {
+  ("production" !== process.env.NODE_ENV ? invariant(
+    typeof spec === 'object',
+    'update(): You provided a key path to update() that did not contain one ' +
+    'of %s. Did you forget to include {%s: ...}?',
+    ALL_COMMANDS_LIST.join(', '),
+    COMMAND_SET
+  ) : invariant(typeof spec === 'object'));
+
+  if (hasOwnProperty.call(spec, COMMAND_SET)) {
+    ("production" !== process.env.NODE_ENV ? invariant(
+      Object.keys(spec).length === 1,
+      'Cannot have more than one key in an object with %s',
+      COMMAND_SET
+    ) : invariant(Object.keys(spec).length === 1));
+
+    return spec[COMMAND_SET];
+  }
+
+  var nextValue = shallowCopy(value);
+
+  if (hasOwnProperty.call(spec, COMMAND_MERGE)) {
+    var mergeObj = spec[COMMAND_MERGE];
+    ("production" !== process.env.NODE_ENV ? invariant(
+      mergeObj && typeof mergeObj === 'object',
+      'update(): %s expects a spec of type \'object\'; got %s',
+      COMMAND_MERGE,
+      mergeObj
+    ) : invariant(mergeObj && typeof mergeObj === 'object'));
+    ("production" !== process.env.NODE_ENV ? invariant(
+      nextValue && typeof nextValue === 'object',
+      'update(): %s expects a target of type \'object\'; got %s',
+      COMMAND_MERGE,
+      nextValue
+    ) : invariant(nextValue && typeof nextValue === 'object'));
+    assign(nextValue, spec[COMMAND_MERGE]);
+  }
+
+  if (hasOwnProperty.call(spec, COMMAND_PUSH)) {
+    invariantArrayCase(value, spec, COMMAND_PUSH);
+    spec[COMMAND_PUSH].forEach(function(item) {
+      nextValue.push(item);
+    });
+  }
+
+  if (hasOwnProperty.call(spec, COMMAND_UNSHIFT)) {
+    invariantArrayCase(value, spec, COMMAND_UNSHIFT);
+    spec[COMMAND_UNSHIFT].forEach(function(item) {
+      nextValue.unshift(item);
+    });
+  }
+
+  if (hasOwnProperty.call(spec, COMMAND_SPLICE)) {
+    ("production" !== process.env.NODE_ENV ? invariant(
+      Array.isArray(value),
+      'Expected %s target to be an array; got %s',
+      COMMAND_SPLICE,
+      value
+    ) : invariant(Array.isArray(value)));
+    ("production" !== process.env.NODE_ENV ? invariant(
+      Array.isArray(spec[COMMAND_SPLICE]),
+      'update(): expected spec of %s to be an array of arrays; got %s. ' +
+      'Did you forget to wrap your parameters in an array?',
+      COMMAND_SPLICE,
+      spec[COMMAND_SPLICE]
+    ) : invariant(Array.isArray(spec[COMMAND_SPLICE])));
+    spec[COMMAND_SPLICE].forEach(function(args) {
+      ("production" !== process.env.NODE_ENV ? invariant(
+        Array.isArray(args),
+        'update(): expected spec of %s to be an array of arrays; got %s. ' +
+        'Did you forget to wrap your parameters in an array?',
+        COMMAND_SPLICE,
+        spec[COMMAND_SPLICE]
+      ) : invariant(Array.isArray(args)));
+      nextValue.splice.apply(nextValue, args);
+    });
+  }
+
+  if (hasOwnProperty.call(spec, COMMAND_APPLY)) {
+    ("production" !== process.env.NODE_ENV ? invariant(
+      typeof spec[COMMAND_APPLY] === 'function',
+      'update(): expected spec of %s to be a function; got %s.',
+      COMMAND_APPLY,
+      spec[COMMAND_APPLY]
+    ) : invariant(typeof spec[COMMAND_APPLY] === 'function'));
+    nextValue = spec[COMMAND_APPLY](nextValue);
+  }
+
+  for (var k in spec) {
+    if (!(ALL_COMMANDS_SET.hasOwnProperty(k) && ALL_COMMANDS_SET[k])) {
+      nextValue[k] = update(value[k], spec[k]);
+    }
+  }
+
+  return nextValue;
+}
+
+module.exports = update;
+
+}).call(this,require('_process'))
+},{"./Object.assign":226,"./invariant":348,"./keyOf":355,"_process":9}],369:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -55664,18 +61484,22 @@ if ("production" !== process.env.NODE_ENV) {
 module.exports = warning;
 
 }).call(this,require('_process'))
-},{"./emptyFunction":308,"_process":6}],349:[function(require,module,exports){
+},{"./emptyFunction":327,"_process":9}],370:[function(require,module,exports){
 module.exports = require('./lib/React');
 
-},{"./lib/React":222}],350:[function(require,module,exports){
+},{"./lib/React":228}],371:[function(require,module,exports){
 'use strict';
 
 var chroma = require('chroma-js');
+var mapboxLight = require('./mapbox-light.json');
 
-var GRID_FILL = '#0ff';
-var GRID_STROKE = chroma(GRID_FILL).darken().desaturate().hex();
-var WATER_COLOR = '#899';
-var BACKGROUND = chroma(WATER_COLOR).darken().hex();
+var GRID_FILL = '#439ab4';
+var GRID_FILL_MAX_OPACITY = 0.6;
+var GRID_STROKE = '#1f3b45';
+
+mapboxLight.layers.forEach(function (layer) {
+  layer.interactive = false;
+});
 
 /**
  * Generates a style sheet with a simple base layer, and a color-scaled grid
@@ -55691,45 +61515,32 @@ module.exports = function (property, breaks, maxVal) {
         'type': 'vector',
         'url': 'mapbox://mapbox.mapbox-streets-v6'
       },
+      'mapbox://mapbox.mapbox-terrain-v2': {
+        'url': 'mapbox://mapbox.mapbox-terrain-v2',
+        'type': 'vector'
+      },
       'grid': {
         'type': 'vector',
         'url': 'mapbox://devseed.oam-footprints'
+      },
+      'grid-hover': {
+        'type': 'geojson',
+        'data': { 'type': 'FeatureCollection', 'features': [] }
       }
     },
-    'sprite': '',
-    'glyphs': '',
-    'layers': [{
-      'id': 'background',
-      'type': 'background',
-      'paint': {
-        'background-color': BACKGROUND
-      }
-    }, {
-      'id': 'water',
-      'type': 'fill',
-      'source': 'mapbox',
-      'source-layer': 'water',
-      'paint': {
-        'fill-color': WATER_COLOR
-      }
-    }, {
-      'id': 'states',
-      'type': 'line',
-      'source': 'mapbox',
-      'source-layer': 'admin',
-      'paint': {
-        'line-color': chroma(BACKGROUND).darken().hex()
-      }
-    }, {
-      'id': 'pop',
+    'sprite': 'mapbox://sprites/devseed/cife4hfep6f88smlxfhgdmdkk',
+    'glyphs': 'mapbox://fonts/devseed/{fontstack}/{range}.pbf',
+    'layers': mapboxLight.layers.concat([{
+      'id': 'footprint-grid',
       'interactive': true,
       'type': 'line',
       'source': 'grid',
       'source-layer': 'footprints',
       'paint': {
-        'line-color': GRID_STROKE
+        'line-color': GRID_STROKE,
+        'line-opacity': 0.1
       }
-    }]
+    }])
   };
 
   // Dynamically generate a set of layers that mimic data-driven styling.
@@ -55745,13 +61556,23 @@ module.exports = function (property, breaks, maxVal) {
       'source-layer': 'footprints',
       'paint': {
         'fill-color': GRID_FILL,
-        'fill-opacity': i / breaks
+        'fill-opacity': GRID_FILL_MAX_OPACITY * i / breaks
       },
       'filter': ['all', ['>', property, i / breaks * maxVal], ['<=', property, (i + 1) / breaks * maxVal]]
     });
   }
 
+  // add the hover style layer at the end so it goes on top
+  style.layers.push({
+    id: 'hover-style',
+    type: 'fill',
+    source: 'grid-hover',
+    paint: {
+      'fill-color': '#a3d'
+    }
+  });
+
   return style;
 };
 
-},{"chroma-js":14}]},{},[1]);
+},{"./mapbox-light.json":4,"chroma-js":17}]},{},[3]);
